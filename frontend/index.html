@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Intermediary Health Hub PoC</title>
+    <style>body{font-family:Arial,Helvetica,sans-serif;padding:20px;max-width:800px;margin:auto}</style>
+  </head>
+  <body>
+    <h1>Intermediary Health Hub — PoC</h1>
+    <p>Ingest a sample lab observation (bloodwork) and retrieve stored labs for a patient.</p>
+
+    <label>Patient ID: <input id="patient" value="patient-123" /></label>
+    <pre id="result"></pre>
+
+    <h3>Sample lab</h3>
+    <textarea id="sample" rows="8" style="width:100%">{
+  "patient_id": "patient-123",
+  "test_name": "Potassium",
+  "loinc": "2823-3",
+  "value": 4.1,
+  "unit": "mmol/L"
+}</textarea>
+
+    <p>
+      <button id="send">Send sample</button>
+      <button id="fetch">Fetch labs</button>
+    </p>
+
+    <script>
+      const base = '';
+      document.getElementById('send').onclick = async ()=>{
+        const body = JSON.parse(document.getElementById('sample').value);
+        const res = await fetch(base + '/api/labs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+        const j = await res.json();
+        document.getElementById('result').textContent = JSON.stringify(j, null, 2);
+      }
+      document.getElementById('fetch').onclick = async ()=>{
+        const id = document.getElementById('patient').value;
+        const res = await fetch(base + '/api/patients/'+encodeURIComponent(id)+'/labs');
+        const j = await res.json();
+        document.getElementById('result').textContent = JSON.stringify(j, null, 2);
+      }
+    </script>
+  </body>
+</html>

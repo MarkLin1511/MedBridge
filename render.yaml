@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: intermediary-health-hub-backend
+    env: docker
+    repo: github.com/MarkLin1511/medical-app
+    branch: main
+    dockerfilePath: Dockerfile
+    plan: free
+    healthCheckPath: /api/health
+    buildCommand: ""
+    envVars: []

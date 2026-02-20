@@ -305,6 +305,9 @@ export default function Home() {
             <span>HIPAA Compliant</span>
             <span>FHIR R4</span>
           </div>
+          <span className="text-xs text-gray-400 dark:text-gray-500">
+            HIPAA Compliant &middot; FHIR R4
+          </span>
         </div>
       </footer>
     </div>

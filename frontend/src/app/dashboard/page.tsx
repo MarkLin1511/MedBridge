@@ -54,10 +54,10 @@ const vitals = [
 ];
 
 const auditLog = [
-  { action: "Lab results viewed", by: "Dr. Sarah Chen (PCP)", when: "2 hours ago" },
-  { action: "Wearable data synced", by: "Apple Watch", when: "6 hours ago" },
-  { action: "Records shared", by: "You → Dr. Patel (Cardiology)", when: "2 days ago" },
-  { action: "Lab results ingested", by: "VA Health Portal", when: "3 weeks ago" },
+  { action: "Lab results viewed", by: "Dr. Sarah Chen (PCP)", when: "2 hours ago", icon: "eye" },
+  { action: "Wearable data synced", by: "Apple Watch", when: "6 hours ago", icon: "sync" },
+  { action: "Records shared", by: "You \u2192 Dr. Patel (Cardiology)", when: "2 days ago", icon: "share" },
+  { action: "Lab results ingested", by: "VA Health Portal", when: "3 weeks ago", icon: "download" },
 ];
 
 function StatusBadge({ status }: { status: string }) {

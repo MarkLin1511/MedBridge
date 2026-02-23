@@ -1,17 +1,24 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from ..db import get_session
-from ..models import User, Notification
-from ..auth import get_current_user
+from app.db import get_session
+from app.models import User, Notification
+from app.auth import get_current_user
 
 router = APIRouter(prefix="/api", tags=["notifications"])
 
 
 @router.get("/notifications")
-def get_notifications(user: User = Depends(get_current_user), session: Session = Depends(get_session)):
+def get_notifications(
+    skip: int = 0,
+    limit: int = 20,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
     results = session.exec(
         select(Notification).where(Notification.patient_id == user.patient_id)
-        .order_by(Notification.created_at.desc()).limit(20)
+        .order_by(Notification.created_at.desc())
+        .offset(skip)
+        .limit(limit)
     ).all()
     return [
         {

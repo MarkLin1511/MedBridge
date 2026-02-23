@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { FadeIn, FadeInStagger, FadeInStaggerItem } from "@/components/AnimatedSection";
 import { useAuth } from "@/lib/auth";
 import { api, RecordItem } from "@/lib/api";
+import { toast } from "sonner";
 
 type RecordType = "all" | "lab" | "medication" | "imaging" | "visit" | "wearable";
 
@@ -33,6 +34,25 @@ export default function RecordsPage() {
   const [records, setRecords] = useState<RecordItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [showExportConfirm, setShowExportConfirm] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Debounce search query with 300ms delay
+  useEffect(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, [searchQuery]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -42,13 +62,14 @@ export default function RecordsPage() {
     }
     setLoading(true);
     api
-      .records(filter)
+      .records(filter, debouncedSearch, 0, 50)
       .then(setRecords)
-      .catch(() => {})
+      .catch(() => toast.error("Failed to load records"))
       .finally(() => setLoading(false));
-  }, [user, authLoading, router, filter]);
+  }, [user, authLoading, router, filter, debouncedSearch]);
 
   const handleExport = async () => {
+    setShowExportConfirm(false);
     setExporting(true);
     try {
       const bundle = await api.exportFhir();
@@ -59,8 +80,9 @@ export default function RecordsPage() {
       a.download = `medbridge_fhir_export_${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
+      toast.success("Records exported successfully");
     } catch {
-      alert("Export failed. Please try again.");
+      toast.error("Failed to export records");
     } finally {
       setExporting(false);
     }
@@ -72,7 +94,7 @@ export default function RecordsPage() {
         <Navbar />
         <div className="flex items-center justify-center h-[60vh]">
           <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" role="status" />
             <span className="text-sm text-gray-500">Loading records...</span>
           </div>
         </div>
@@ -91,26 +113,70 @@ export default function RecordsPage() {
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Medical Records</h1>
               <p className="mt-1 text-sm text-gray-500">Complete timeline across all connected portals and devices</p>
             </div>
-            <button
-              onClick={handleExport}
-              disabled={exporting}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-600 text-white text-sm font-medium hover:bg-teal-700 transition-colors disabled:opacity-50 shrink-0"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            <div className="relative shrink-0">
+              <button
+                onClick={() => setShowExportConfirm(true)}
+                disabled={exporting}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-600 text-white text-sm font-medium hover:bg-teal-700 transition-colors disabled:opacity-50"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+                {exporting ? "Exporting..." : "Export FHIR R4"}
+              </button>
+
+              {showExportConfirm && (
+                <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg p-4 z-50">
+                  <p className="text-sm text-gray-700 dark:text-gray-300">
+                    Export all records as FHIR R4 JSON? This will include all your medical data.
+                  </p>
+                  <div className="flex justify-end gap-2 mt-3">
+                    <button
+                      onClick={() => setShowExportConfirm(false)}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleExport}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 transition-colors"
+                    >
+                      Confirm Export
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </FadeIn>
+
+        {/* Search Bar */}
+        <FadeIn delay={0.05}>
+          <div className="mt-6">
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
-              {exporting ? "Exporting..." : "Export FHIR R4"}
-            </button>
+              <input
+                type="text"
+                placeholder="Search records..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                aria-label="Search medical records"
+              />
+            </div>
           </div>
         </FadeIn>
 
         {/* Filters */}
         <FadeIn delay={0.1}>
-          <div className="mt-6 flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0">
             {filterOptions.map((opt) => (
               <button
                 key={opt.value}
                 onClick={() => setFilter(opt.value)}
+                aria-label={`Filter by ${opt.label}`}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
                   filter === opt.value
                     ? "bg-teal-600 text-white"
@@ -162,8 +228,12 @@ export default function RecordsPage() {
           </FadeInStagger>
 
           {records.length === 0 && !loading && (
-            <div className="text-center py-12 text-gray-500">
-              No records found for this filter.
+            <div className="text-center py-16">
+              <svg className="mx-auto w-12 h-12 text-gray-300 dark:text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m5.231 13.481L15 17.25m-4.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9zm3.75 11.625a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+              </svg>
+              <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">No records found</p>
+              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Try adjusting your search or filter criteria</p>
             </div>
           )}
         </div>

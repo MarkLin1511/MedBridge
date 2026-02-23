@@ -65,6 +65,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push("/login");
   }, [router]);
 
+  useEffect(() => {
+    const handleExpired = () => { logout(); };
+    window.addEventListener("auth:expired", handleExpired);
+    return () => window.removeEventListener("auth:expired", handleExpired);
+  }, [logout]);
+
   return (
     <AuthContext.Provider value={{ user, token, loading, login, signup, logout }}>
       {children}

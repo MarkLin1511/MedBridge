@@ -1,5 +1,15 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+export class ApiError extends Error {
+  status: number;
+  detail: string;
+  constructor(status: number, detail: string) {
+    super(detail);
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
 export interface UserData {
   id: number;
   email: string;
@@ -141,14 +151,41 @@ class ApiClient {
     if (options?.body && typeof options.body === "string" && !options.headers) {
       headers["Content-Type"] = "application/json";
     }
-    const res = await fetch(`${API_URL}${path}`, {
-      ...options,
-      headers: { ...headers, ...(options?.headers as Record<string, string>) },
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(text || `Request failed: ${res.status}`);
+
+    const doFetch = async (): Promise<Response> => {
+      return fetch(`${API_URL}${path}`, {
+        ...options,
+        headers: { ...headers, ...(options?.headers as Record<string, string>) },
+      });
+    };
+
+    let res = await doFetch();
+
+    // Retry once for 5xx errors after 1 second delay
+    if (res.status >= 500) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      res = await doFetch();
     }
+
+    if (!res.ok) {
+      let detail = `Request failed: ${res.status}`;
+      try {
+        const body = await res.json();
+        if (body.detail) {
+          detail = typeof body.detail === "string" ? body.detail : JSON.stringify(body.detail);
+        }
+      } catch {
+        const text = await res.text().catch(() => "");
+        if (text) detail = text;
+      }
+
+      if (res.status === 401) {
+        window.dispatchEvent(new Event("auth:expired"));
+      }
+
+      throw new ApiError(res.status, detail);
+    }
+
     return res.json();
   }
 
@@ -173,14 +210,27 @@ class ApiClient {
     return this.request("/api/auth/me");
   }
 
+  async changePassword(oldPassword: string, newPassword: string): Promise<{ status: string }> {
+    return this.request("/api/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
   // Dashboard
   async dashboard(): Promise<DashboardData> {
     return this.request("/api/dashboard");
   }
 
   // Records
-  async records(type?: string): Promise<RecordItem[]> {
-    const query = type && type !== "all" ? `?type=${type}` : "";
+  async records(type?: string, search?: string, skip?: number, limit?: number): Promise<RecordItem[]> {
+    const params = new URLSearchParams();
+    if (type && type !== "all") params.set("type", type);
+    if (search) params.set("search", search);
+    if (skip) params.set("skip", String(skip));
+    if (limit) params.set("limit", String(limit));
+    const query = params.toString() ? `?${params}` : "";
     return this.request(`/api/records${query}`);
   }
 

@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 import { useAuth } from "@/lib/auth";
 import { api, NotificationData } from "@/lib/api";
 
@@ -21,12 +22,15 @@ export default function Navbar() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationData[]>([]);
   const notifRef = useRef<HTMLDivElement>(null);
+  const notifDropdownRef = useRef<HTMLDivElement>(null);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   useEffect(() => {
     if (user) {
-      api.notifications().then(setNotifications).catch(() => {});
+      api.notifications().then(setNotifications).catch(() => {
+        toast.error("Failed to load notifications");
+      });
     }
   }, [user]);
 
@@ -40,6 +44,42 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  // Close dropdown on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && notifOpen) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [notifOpen]);
+
+  // Focus trap within notification dropdown
+  const handleDropdownKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key !== "Tab" || !notifDropdownRef.current) return;
+
+    const focusableElements = notifDropdownRef.current.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusableElements.length === 0) return;
+
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+
+    if (e.shiftKey) {
+      if (document.activeElement === firstElement) {
+        e.preventDefault();
+        lastElement.focus();
+      }
+    } else {
+      if (document.activeElement === lastElement) {
+        e.preventDefault();
+        firstElement.focus();
+      }
+    }
+  }, []);
+
   const handleMarkRead = async (id: number) => {
     await api.markNotificationRead(id);
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
@@ -48,6 +88,7 @@ export default function Navbar() {
   const handleMarkAllRead = async () => {
     await api.markAllNotificationsRead();
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    toast.success("All notifications marked as read");
   };
 
   const initials = user ? `${user.first_name[0]}${user.last_name[0]}` : "??";
@@ -86,6 +127,8 @@ export default function Navbar() {
             <div className="relative" ref={notifRef}>
               <button
                 onClick={() => setNotifOpen(!notifOpen)}
+                aria-label="Notifications"
+                aria-expanded={notifOpen}
                 className="relative p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -106,6 +149,8 @@ export default function Navbar() {
                     exit={{ opacity: 0, y: -8, scale: 0.96 }}
                     transition={{ duration: 0.15 }}
                     className="absolute right-0 top-12 w-80 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg overflow-hidden z-50"
+                    ref={notifDropdownRef}
+                    onKeyDown={handleDropdownKeyDown}
                   >
                     <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800">
                       <span className="text-sm font-semibold text-gray-900 dark:text-white">Notifications</span>
@@ -115,7 +160,7 @@ export default function Navbar() {
                         </button>
                       )}
                     </div>
-                    <div className="max-h-80 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
+                    <div className="max-h-80 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800" role="menu">
                       {notifications.length === 0 ? (
                         <div className="px-4 py-6 text-center text-sm text-gray-500">No notifications</div>
                       ) : (
@@ -123,6 +168,7 @@ export default function Navbar() {
                           <button
                             key={n.id}
                             onClick={() => handleMarkRead(n.id)}
+                            role="menuitem"
                             className={`w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
                               !n.read ? "bg-teal-50/50 dark:bg-teal-950/20" : ""
                             }`}
@@ -145,7 +191,10 @@ export default function Navbar() {
 
             {/* User avatar + logout */}
             <div className="hidden sm:flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-teal-600 text-white flex items-center justify-center text-sm font-medium">
+              <div
+                className="w-8 h-8 rounded-full bg-teal-600 text-white flex items-center justify-center text-sm font-medium"
+                aria-label={`User menu for ${user?.first_name ?? ""} ${user?.last_name ?? ""}`}
+              >
                 {initials}
               </div>
               <button

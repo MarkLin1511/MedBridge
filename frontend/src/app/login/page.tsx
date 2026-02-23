@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
+import { toast } from "sonner";
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -18,7 +19,9 @@ export default function LoginPage() {
     try {
       await login(email, password);
     } catch {
-      setError("Invalid email or password");
+      const msg = "Invalid email or password";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -30,7 +33,9 @@ export default function LoginPage() {
     try {
       await login("marcus.johnson@email.com", "demo1234");
     } catch {
-      setError("Demo account not found. Please run the seed script first.");
+      const msg = "Demo account not found. Please run the seed script first.";
+      setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -76,7 +81,11 @@ export default function LoginPage() {
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Sign in to access your health records</p>
 
           {error && (
-            <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300">
+            <div
+              id="login-error"
+              role="alert"
+              className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300"
+            >
               {error}
             </div>
           )}
@@ -91,11 +100,23 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
                 required
+                aria-label="Email address"
+                aria-describedby={error ? "login-error" : undefined}
                 className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               />
             </div>
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
+              <div className="flex items-center justify-between mb-1">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
+                <button
+                  type="button"
+                  disabled
+                  className="text-xs text-teal-600 hover:text-teal-700 font-medium cursor-not-allowed opacity-70"
+                  aria-label="Forgot password (coming soon)"
+                >
+                  Forgot password?
+                </button>
+              </div>
               <input
                 id="password"
                 type="password"
@@ -103,6 +124,8 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
+                aria-label="Password"
+                aria-describedby={error ? "login-error" : undefined}
                 className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
               />
             </div>
@@ -121,7 +144,7 @@ export default function LoginPage() {
               disabled={loading}
               className="w-full py-2.5 rounded-lg font-medium border-2 border-dashed border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/30 transition-colors disabled:opacity-50"
             >
-              Try demo account
+              Try demo account <span className="text-xs opacity-70">(Demo mode)</span>
             </button>
             <p className="mt-1.5 text-center text-xs text-gray-400">
               marcus.johnson@email.com / demo1234

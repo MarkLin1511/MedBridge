@@ -1,9 +1,12 @@
 import json
-from fastapi import APIRouter, Depends
+import logging
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select
-from ..db import get_session
-from ..models import User, LabObservation, WearableData, AuditLog, PortalConnection
-from ..auth import get_current_user
+from app.db import get_session
+from app.models import User, LabObservation, WearableData, AuditLog, PortalConnection
+from app.auth import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -12,20 +15,30 @@ router = APIRouter(prefix="/api", tags=["dashboard"])
 def get_dashboard(user: User = Depends(get_current_user), session: Session = Depends(get_session)):
     pid = user.patient_id
 
-    # Connected portals
-    portals = session.exec(
-        select(PortalConnection).where(PortalConnection.patient_id == pid, PortalConnection.status == "connected")
-    ).all()
-    portal_names = [p.name for p in portals]
+    try:
+        # Connected portals
+        portals = session.exec(
+            select(PortalConnection).where(PortalConnection.patient_id == pid, PortalConnection.status == "connected")
+        ).all()
+        portal_names = [p.name for p in portals]
+    except Exception as e:
+        logger.error(f"Failed to fetch portals for patient {pid}: {e}")
+        portals = []
+        portal_names = []
 
     # Wearable source
     wearable_portals = [p.name for p in portals if "Apple" in p.name or "Watch" in p.name or "Fitbit" in p.name]
     wearable_name = wearable_portals[0] if wearable_portals else None
 
-    # Vitals from wearable data
-    vitals_raw = session.exec(
-        select(WearableData).where(WearableData.patient_id == pid).order_by(WearableData.timestamp.desc())
-    ).all()
+    try:
+        # Vitals from wearable data
+        vitals_raw = session.exec(
+            select(WearableData).where(WearableData.patient_id == pid).order_by(WearableData.timestamp.desc())
+        ).all()
+    except Exception as e:
+        logger.error(f"Failed to fetch wearable data for patient {pid}: {e}")
+        vitals_raw = []
+
     vitals = []
     seen_metrics = set()
     for v in vitals_raw:
@@ -44,10 +57,14 @@ def get_dashboard(user: User = Depends(get_current_user), session: Session = Dep
                 "period": v.period or "Last 7 days",
             })
 
-    # Lab trends - group by test name
-    all_labs = session.exec(
-        select(LabObservation).where(LabObservation.patient_id == pid).order_by(LabObservation.timestamp.asc())
-    ).all()
+    try:
+        # Lab trends - group by test name
+        all_labs = session.exec(
+            select(LabObservation).where(LabObservation.patient_id == pid).order_by(LabObservation.timestamp.asc())
+        ).all()
+    except Exception as e:
+        logger.error(f"Failed to fetch lab observations for patient {pid}: {e}")
+        all_labs = []
 
     glucose_trend = [{"date": l.timestamp.strftime("%b %y"), "value": l.value, "source": l.source or ""}
                      for l in all_labs if "glucose" in l.test_name.lower()]
@@ -56,23 +73,45 @@ def get_dashboard(user: User = Depends(get_current_user), session: Session = Dep
     chol_trend = [{"date": l.timestamp.strftime("%b %y"), "value": l.value, "source": l.source or ""}
                   for l in all_labs if "cholesterol" in l.test_name.lower()]
 
-    # Recent labs
-    recent_labs = session.exec(
-        select(LabObservation).where(LabObservation.patient_id == pid)
-        .order_by(LabObservation.timestamp.desc()).limit(10)
-    ).all()
+    try:
+        # Recent labs
+        recent_labs = session.exec(
+            select(LabObservation).where(LabObservation.patient_id == pid)
+            .order_by(LabObservation.timestamp.desc()).limit(10)
+        ).all()
+    except Exception as e:
+        logger.error(f"Failed to fetch recent labs for patient {pid}: {e}")
+        recent_labs = []
+
     labs_out = [{
         "test": l.test_name, "loinc": l.loinc, "value": l.value, "unit": l.unit,
         "range": l.ref_range, "status": l.status or "normal",
         "date": l.timestamp.strftime("%Y-%m-%d"), "source": l.source or ""
     } for l in recent_labs]
 
-    # Audit log
-    audit_entries = session.exec(
-        select(AuditLog).where(AuditLog.patient_id == pid).order_by(AuditLog.created_at.desc()).limit(10)
-    ).all()
+    try:
+        # Audit log
+        audit_entries = session.exec(
+            select(AuditLog).where(AuditLog.patient_id == pid).order_by(AuditLog.created_at.desc()).limit(10)
+        ).all()
+    except Exception as e:
+        logger.error(f"Failed to fetch audit log for patient {pid}: {e}")
+        audit_entries = []
+
     audit_out = [{"action": a.action, "by": a.performed_by, "when": _relative_time(a.created_at), "icon": a.icon}
                  for a in audit_entries]
+
+    # Record audit log entry for dashboard view
+    try:
+        session.add(AuditLog(
+            patient_id=pid,
+            action="Viewed dashboard",
+            performed_by="You",
+            icon="eye",
+        ))
+        session.commit()
+    except Exception as e:
+        logger.error(f"Failed to write dashboard view audit log for patient {pid}: {e}")
 
     return {
         "patient": {

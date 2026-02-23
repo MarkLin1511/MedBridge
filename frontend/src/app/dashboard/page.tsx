@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import Navbar from "@/components/Navbar";
 import LabChart from "@/components/LabChart";
 import { FadeIn, FadeInStagger, FadeInStaggerItem } from "@/components/AnimatedSection";
@@ -11,20 +12,29 @@ import { api, DashboardData } from "@/lib/api";
 function StatusBadge({ status }: { status: string }) {
   if (status === "high") {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 dark:bg-red-900/40 text-red-700 dark:text-red-300">
+      <span
+        className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-50 dark:bg-red-900/40 text-red-700 dark:text-red-300"
+        aria-label={`Status: High`}
+      >
         High
       </span>
     );
   }
   if (status === "low") {
     return (
-      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+      <span
+        className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
+        aria-label={`Status: Low`}
+      >
         Low
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+    <span
+      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
+      aria-label={`Status: Normal`}
+    >
       Normal
     </span>
   );
@@ -64,7 +74,10 @@ export default function DashboardPage() {
     api
       .dashboard()
       .then(setData)
-      .catch(() => router.push("/login"))
+      .catch(() => {
+        toast.error("Failed to load dashboard data");
+        router.push("/login");
+      })
       .finally(() => setLoading(false));
   }, [user, authLoading, router]);
 
@@ -74,7 +87,11 @@ export default function DashboardPage() {
         <Navbar />
         <div className="flex items-center justify-center h-[60vh]">
           <div className="flex flex-col items-center gap-3">
-            <div className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
+            <div
+              className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"
+              role="status"
+              aria-label="Loading"
+            />
             <span className="text-sm text-gray-500">Loading your health data...</span>
           </div>
         </div>
@@ -111,6 +128,7 @@ export default function DashboardPage() {
                 <span
                   key={p}
                   className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-xs font-medium"
+                  aria-label={`Connected portal: ${p}`}
                 >
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   {p}
@@ -121,7 +139,7 @@ export default function DashboardPage() {
         </FadeIn>
 
         {/* Vitals */}
-        {vitals.length > 0 && (
+        {vitals.length > 0 ? (
           <>
             <FadeIn delay={0.1}>
               <div className="flex items-baseline gap-2 mb-4">
@@ -143,85 +161,113 @@ export default function DashboardPage() {
               ))}
             </FadeInStagger>
           </>
+        ) : (
+          <FadeIn delay={0.1}>
+            <div className="mb-8">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Vitals</h2>
+              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-8 text-center">
+                <p className="text-sm text-gray-500">No vitals data yet</p>
+              </div>
+            </div>
+          </FadeIn>
         )}
 
         {/* Lab Trends */}
         <FadeIn delay={0.1}>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Lab Trends</h2>
         </FadeIn>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
-          {lab_trends.glucose.length > 0 && (
-            <FadeIn delay={0.1}>
-              <LabChart title="Glucose (fasting)" unit="mg/dL" data={lab_trends.glucose} refMin={70} refMax={100} />
-            </FadeIn>
-          )}
-          {lab_trends.a1c.length > 0 && (
-            <FadeIn delay={0.2}>
-              <LabChart title="Hemoglobin A1c" unit="%" data={lab_trends.a1c} refMin={4.0} refMax={5.6} />
-            </FadeIn>
-          )}
-          {lab_trends.cholesterol.length > 0 && (
-            <FadeIn delay={0.3}>
-              <LabChart title="Cholesterol (total)" unit="mg/dL" data={lab_trends.cholesterol} refMax={200} />
-            </FadeIn>
-          )}
-        </div>
+        {lab_trends.glucose.length > 0 || lab_trends.a1c.length > 0 || lab_trends.cholesterol.length > 0 ? (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+            {lab_trends.glucose.length > 0 && (
+              <FadeIn delay={0.1}>
+                <LabChart title="Glucose (fasting)" unit="mg/dL" data={lab_trends.glucose} refMin={70} refMax={100} />
+              </FadeIn>
+            )}
+            {lab_trends.a1c.length > 0 && (
+              <FadeIn delay={0.2}>
+                <LabChart title="Hemoglobin A1c" unit="%" data={lab_trends.a1c} refMin={4.0} refMax={5.6} />
+              </FadeIn>
+            )}
+            {lab_trends.cholesterol.length > 0 && (
+              <FadeIn delay={0.3}>
+                <LabChart title="Cholesterol (total)" unit="mg/dL" data={lab_trends.cholesterol} refMax={200} />
+              </FadeIn>
+            )}
+          </div>
+        ) : (
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-8 text-center mb-8">
+            <p className="text-sm text-gray-500">No lab trend data available</p>
+          </div>
+        )}
 
         {/* Lab results table */}
         <FadeIn delay={0.1}>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Recent Lab Results</h2>
-          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden mb-8">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 dark:bg-gray-800/50">
-                    <th className="text-left px-5 py-3 text-xs uppercase tracking-wider font-medium text-gray-500">Test</th>
-                    <th className="text-left px-5 py-3 text-xs uppercase tracking-wider font-medium text-gray-500 hidden sm:table-cell">LOINC</th>
-                    <th className="text-left px-5 py-3 text-xs uppercase tracking-wider font-medium text-gray-500">Result</th>
-                    <th className="text-left px-5 py-3 text-xs uppercase tracking-wider font-medium text-gray-500 hidden md:table-cell">Range</th>
-                    <th className="text-left px-5 py-3 text-xs uppercase tracking-wider font-medium text-gray-500">Status</th>
-                    <th className="text-left px-5 py-3 text-xs uppercase tracking-wider font-medium text-gray-500 hidden lg:table-cell">Date</th>
-                    <th className="text-left px-5 py-3 text-xs uppercase tracking-wider font-medium text-gray-500">Source</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recent_labs.map((lab, i) => (
-                    <tr
-                      key={`${lab.loinc}-${lab.date}-${i}`}
-                      className="border-b border-gray-100 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors"
-                    >
-                      <td className="px-5 py-3.5 font-medium text-gray-900 dark:text-white">{lab.test}</td>
-                      <td className="px-5 py-3.5 text-gray-500 font-mono text-xs hidden sm:table-cell">{lab.loinc}</td>
-                      <td className="px-5 py-3.5 text-gray-900 dark:text-white font-medium">{lab.value} {lab.unit}</td>
-                      <td className="px-5 py-3.5 text-gray-500 hidden md:table-cell">{lab.range}</td>
-                      <td className="px-5 py-3.5"><StatusBadge status={lab.status} /></td>
-                      <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell">{lab.date}</td>
-                      <td className="px-5 py-3.5"><SourceBadge source={lab.source} /></td>
+          {recent_labs.length > 0 ? (
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl overflow-hidden mb-8">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <caption className="sr-only">Recent Lab Results</caption>
+                  <thead>
+                    <tr className="bg-gray-50 dark:bg-gray-800/50">
+                      <th scope="col" className="text-left px-5 py-3 text-xs uppercase tracking-wider font-medium text-gray-500">Test</th>
+                      <th scope="col" className="text-left px-5 py-3 text-xs uppercase tracking-wider font-medium text-gray-500 hidden sm:table-cell">LOINC</th>
+                      <th scope="col" className="text-left px-5 py-3 text-xs uppercase tracking-wider font-medium text-gray-500">Result</th>
+                      <th scope="col" className="text-left px-5 py-3 text-xs uppercase tracking-wider font-medium text-gray-500 hidden md:table-cell">Range</th>
+                      <th scope="col" className="text-left px-5 py-3 text-xs uppercase tracking-wider font-medium text-gray-500">Status</th>
+                      <th scope="col" className="text-left px-5 py-3 text-xs uppercase tracking-wider font-medium text-gray-500 hidden lg:table-cell">Date</th>
+                      <th scope="col" className="text-left px-5 py-3 text-xs uppercase tracking-wider font-medium text-gray-500">Source</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {recent_labs.map((lab, i) => (
+                      <tr
+                        key={`${lab.loinc}-${lab.date}-${i}`}
+                        className="border-b border-gray-100 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors"
+                      >
+                        <td className="px-5 py-3.5 font-medium text-gray-900 dark:text-white">{lab.test}</td>
+                        <td className="px-5 py-3.5 text-gray-500 font-mono text-xs hidden sm:table-cell">{lab.loinc}</td>
+                        <td className="px-5 py-3.5 text-gray-900 dark:text-white font-medium">{lab.value} {lab.unit}</td>
+                        <td className="px-5 py-3.5 text-gray-500 hidden md:table-cell">{lab.range}</td>
+                        <td className="px-5 py-3.5"><StatusBadge status={lab.status} /></td>
+                        <td className="px-5 py-3.5 text-gray-500 hidden lg:table-cell">{lab.date}</td>
+                        <td className="px-5 py-3.5"><SourceBadge source={lab.source} /></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-8 text-center mb-8">
+              <p className="text-sm text-gray-500">No recent labs</p>
+            </div>
+          )}
         </FadeIn>
 
         {/* Audit log */}
         <FadeIn delay={0.1}>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Access Log</h2>
-          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl divide-y divide-gray-100 dark:divide-gray-800">
-            {audit_log.map((entry, i) => (
-              <div
-                key={i}
-                className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-1"
-              >
-                <div>
-                  <span className="text-sm text-gray-900 dark:text-white">{entry.action}</span>
-                  <span className="text-sm text-gray-500 ml-2">by {entry.by}</span>
+          {audit_log.length > 0 ? (
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl divide-y divide-gray-100 dark:divide-gray-800">
+              {audit_log.map((entry, i) => (
+                <div
+                  key={i}
+                  className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-1"
+                >
+                  <div>
+                    <span className="text-sm text-gray-900 dark:text-white">{entry.action}</span>
+                    <span className="text-sm text-gray-500 ml-2">by {entry.by}</span>
+                  </div>
+                  <span className="text-xs text-gray-400">{entry.when}</span>
                 </div>
-                <span className="text-xs text-gray-400">{entry.when}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-8 text-center">
+              <p className="text-sm text-gray-500">No access log entries</p>
+            </div>
+          )}
         </FadeIn>
       </div>
     </div>

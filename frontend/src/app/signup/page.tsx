@@ -1,6 +1,49 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
+import { useAuth } from "@/lib/auth";
 
 export default function SignupPage() {
+  const { signup } = useAuth();
+  const [form, setForm] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    role: "patient",
+    password: "",
+    dob: "",
+  });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const update = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+    try {
+      await signup({
+        email: form.email,
+        password: form.password,
+        first_name: form.first_name,
+        last_name: form.last_name,
+        role: form.role,
+        dob: form.dob || undefined,
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Signup failed";
+      if (message.includes("already registered")) {
+        setError("An account with this email already exists");
+      } else {
+        setError("Signup failed. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex">
       {/* Left panel */}
@@ -39,24 +82,34 @@ export default function SignupPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create your account</h1>
           <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Start unifying your health records in minutes</p>
 
-          <form className="mt-8 space-y-4">
+          {error && (
+            <div className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300">
+              {error}
+            </div>
+          )}
+
+          <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="first" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First name</label>
-                <input id="first" type="text" placeholder="Jane" className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
+                <input id="first" type="text" value={form.first_name} onChange={(e) => update("first_name", e.target.value)} placeholder="Jane" required className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
               </div>
               <div>
                 <label htmlFor="last" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last name</label>
-                <input id="last" type="text" placeholder="Doe" className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
+                <input id="last" type="text" value={form.last_name} onChange={(e) => update("last_name", e.target.value)} placeholder="Doe" required className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
               </div>
             </div>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-              <input id="email" type="email" placeholder="you@example.com" className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
+              <input id="email" type="email" value={form.email} onChange={(e) => update("email", e.target.value)} placeholder="you@example.com" required className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
+            </div>
+            <div>
+              <label htmlFor="dob" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date of birth</label>
+              <input id="dob" type="date" value={form.dob} onChange={(e) => update("dob", e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
             </div>
             <div>
               <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">I am a...</label>
-              <select id="role" className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent">
+              <select id="role" value={form.role} onChange={(e) => update("role", e.target.value)} className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent">
                 <option value="patient">Patient</option>
                 <option value="provider">Healthcare Provider</option>
                 <option value="admin">Hospital Administrator</option>
@@ -64,10 +117,10 @@ export default function SignupPage() {
             </div>
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
-              <input id="password" type="password" placeholder="••••••••" className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
+              <input id="password" type="password" value={form.password} onChange={(e) => update("password", e.target.value)} placeholder="••••••••" required minLength={6} className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent" />
             </div>
-            <button type="submit" className="w-full bg-teal-600 text-white py-2.5 rounded-lg font-medium hover:bg-teal-700 transition-colors">
-              Create account
+            <button type="submit" disabled={loading} className="w-full bg-teal-600 text-white py-2.5 rounded-lg font-medium hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              {loading ? "Creating account..." : "Create account"}
             </button>
           </form>
 

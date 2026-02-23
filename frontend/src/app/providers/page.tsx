@@ -1,65 +1,81 @@
 "use client";
 
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { FadeIn, FadeInStagger, FadeInStaggerItem } from "@/components/AnimatedSection";
-import { useState } from "react";
-
-const connectedProviders = [
-  {
-    id: 1,
-    name: "Dr. Sarah Chen",
-    specialty: "Primary Care",
-    facility: "Bay Area Medical Group",
-    portal: "Epic MyChart",
-    lastAccess: "2 hours ago",
-    accessLevel: "Full records",
-    status: "active",
-  },
-  {
-    id: 2,
-    name: "Dr. James Wright",
-    specialty: "Internal Medicine",
-    facility: "VA Palo Alto Health Care",
-    portal: "VA Health",
-    lastAccess: "3 weeks ago",
-    accessLevel: "Full records",
-    status: "active",
-  },
-  {
-    id: 3,
-    name: "Dr. Raj Patel",
-    specialty: "Cardiology",
-    facility: "Stanford Heart Center",
-    portal: "Epic MyChart",
-    lastAccess: "2 days ago",
-    accessLevel: "Labs & vitals only",
-    status: "active",
-  },
-];
-
-const pendingInvites = [
-  {
-    id: 4,
-    name: "Dr. Maria Lopez",
-    specialty: "Radiology",
-    facility: "VA Palo Alto Health Care",
-    portal: "VA Health",
-    requestedAccess: "Imaging records",
-    requestDate: "2026-02-18",
-  },
-];
-
-const availablePortals = [
-  { name: "Epic MyChart", doctors: "300,000+", status: "connected", color: "bg-violet-50 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800" },
-  { name: "VA Health", doctors: "150,000+", status: "connected", color: "bg-sky-50 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-800" },
-  { name: "Cerner / Oracle Health", doctors: "250,000+", status: "available", color: "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800" },
-  { name: "Athenahealth", doctors: "160,000+", status: "available", color: "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800" },
-  { name: "Apple Health", doctors: "N/A", status: "connected", color: "bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800" },
-  { name: "Allscripts", doctors: "180,000+", status: "available", color: "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800" },
-];
+import { motion } from "framer-motion";
+import { useAuth } from "@/lib/auth";
+import { api, ProviderData, PortalData } from "@/lib/api";
 
 export default function ProvidersPage() {
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const [providers, setProviders] = useState<ProviderData | null>(null);
+  const [portals, setPortals] = useState<PortalData[]>([]);
+  const [loading, setLoading] = useState(true);
   const [revokeConfirm, setRevokeConfirm] = useState<number | null>(null);
+
+  const loadData = useCallback(async () => {
+    try {
+      const [prov, port] = await Promise.all([api.providers(), api.portals()]);
+      setProviders(prov);
+      setPortals(port);
+    } catch {
+      // silently fail
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    loadData();
+  }, [user, authLoading, router, loadData]);
+
+  const handleApprove = async (id: number) => {
+    await api.approveProvider(id);
+    loadData();
+  };
+
+  const handleDeny = async (id: number) => {
+    await api.denyProvider(id);
+    loadData();
+  };
+
+  const handleRevoke = async (id: number) => {
+    await api.revokeProvider(id);
+    setRevokeConfirm(null);
+    loadData();
+  };
+
+  const handleConnectPortal = async (id: number) => {
+    await api.connectPortal(id);
+    loadData();
+  };
+
+  const handleDisconnectPortal = async (id: number) => {
+    await api.disconnectPortal(id);
+    loadData();
+  };
+
+  if (authLoading || loading || !providers) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+        <Navbar />
+        <div className="flex items-center justify-center h-[60vh]">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm text-gray-500">Loading providers...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 md:pb-0">
@@ -72,32 +88,42 @@ export default function ProvidersPage() {
         </FadeIn>
 
         {/* Pending invites */}
-        {pendingInvites.length > 0 && (
+        {providers.pending.length > 0 && (
           <FadeIn delay={0.1}>
             <div className="mt-6">
               <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-3">Pending Requests</h2>
-              {pendingInvites.map((invite) => (
-                <div
-                  key={invite.id}
-                  className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-5"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <div className="font-semibold text-gray-900 dark:text-white">{invite.name}</div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">{invite.specialty} &middot; {invite.facility}</div>
-                      <div className="text-xs text-amber-700 dark:text-amber-300 mt-1">Requesting access to: {invite.requestedAccess}</div>
+              <div className="space-y-3">
+                {providers.pending.map((invite) => (
+                  <motion.div
+                    key={invite.id}
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-5"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-gray-900 dark:text-white">{invite.name}</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">{invite.specialty} &middot; {invite.facility}</div>
+                        <div className="text-xs text-amber-700 dark:text-amber-300 mt-1">Requesting access to: {invite.requestedAccess}</div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleApprove(invite.id)}
+                          className="px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 transition-colors"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => handleDeny(invite.id)}
+                          className="px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        >
+                          Deny
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button className="px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 transition-colors">
-                        Approve
-                      </button>
-                      <button className="px-4 py-2 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm rounded-lg border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                        Deny
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                  </motion.div>
+                ))}
+              </div>
             </div>
           </FadeIn>
         )}
@@ -106,75 +132,90 @@ export default function ProvidersPage() {
         <FadeIn delay={0.15}>
           <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider mt-8 mb-3">Connected Providers</h2>
         </FadeIn>
-        <FadeInStagger className="space-y-3">
-          {connectedProviders.map((provider) => (
-            <FadeInStaggerItem key={provider.id}>
-              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-teal-50 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 flex items-center justify-center font-semibold text-sm shrink-0">
-                      {provider.name.split(" ").map((n) => n[0]).join("")}
+        {providers.connected.length === 0 ? (
+          <div className="text-center py-8 text-gray-500 text-sm">No connected providers yet.</div>
+        ) : (
+          <FadeInStagger className="space-y-3">
+            {providers.connected.map((provider) => (
+              <FadeInStaggerItem key={provider.id}>
+                <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-teal-50 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 flex items-center justify-center font-semibold text-sm shrink-0">
+                        {provider.name.split(" ").filter(n => n.startsWith("D") || n === n.charAt(0).toUpperCase() + n.slice(1)).map((n) => n[0]).join("").slice(0, 2)}
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-900 dark:text-white">{provider.name}</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400">{provider.specialty} &middot; {provider.facility}</div>
+                        <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                            {provider.accessLevel}
+                          </span>
+                          <span className="text-xs text-gray-400">via {provider.portal}</span>
+                          <span className="text-xs text-gray-400">&middot; Last access: {provider.lastAccess}</span>
+                        </div>
+                      </div>
                     </div>
                     <div>
-                      <div className="font-semibold text-gray-900 dark:text-white">{provider.name}</div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400">{provider.specialty} &middot; {provider.facility}</div>
-                      <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                        <span className="px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
-                          {provider.accessLevel}
-                        </span>
-                        <span className="text-xs text-gray-400">via {provider.portal}</span>
-                        <span className="text-xs text-gray-400">&middot; Last access: {provider.lastAccess}</span>
-                      </div>
+                      {revokeConfirm === provider.id ? (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleRevoke(provider.id)}
+                            className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                          >
+                            Confirm revoke
+                          </button>
+                          <button
+                            onClick={() => setRevokeConfirm(null)}
+                            className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setRevokeConfirm(provider.id)}
+                          className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors"
+                        >
+                          Revoke access
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <div>
-                    {revokeConfirm === provider.id ? (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setRevokeConfirm(null)}
-                          className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-                        >
-                          Confirm revoke
-                        </button>
-                        <button
-                          onClick={() => setRevokeConfirm(null)}
-                          className="px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => setRevokeConfirm(provider.id)}
-                        className="px-3 py-1.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-colors"
-                      >
-                        Revoke access
-                      </button>
-                    )}
-                  </div>
                 </div>
-              </div>
-            </FadeInStaggerItem>
-          ))}
-        </FadeInStagger>
+              </FadeInStaggerItem>
+            ))}
+          </FadeInStagger>
+        )}
 
-        {/* Connected portals */}
+        {/* Portal connections */}
         <FadeIn delay={0.1}>
           <h2 className="text-sm font-medium text-gray-500 uppercase tracking-wider mt-10 mb-3">Portal Connections</h2>
         </FadeIn>
         <FadeInStagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {availablePortals.map((portal) => (
-            <FadeInStaggerItem key={portal.name}>
-              <div className={`border rounded-2xl p-4 ${portal.color}`}>
+          {portals.map((portal) => (
+            <FadeInStaggerItem key={portal.id}>
+              <div className={`border rounded-2xl p-4 ${portal.color || "bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800"}`}>
                 <div className="flex items-center justify-between">
                   <div className="font-semibold">{portal.name}</div>
                   {portal.status === "connected" ? (
-                    <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      Connected
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                        Connected
+                      </span>
+                      <button
+                        onClick={() => handleDisconnectPortal(portal.id)}
+                        className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
                   ) : (
-                    <button className="text-xs font-medium text-teal-600 hover:text-teal-700 transition-colors">
+                    <button
+                      onClick={() => handleConnectPortal(portal.id)}
+                      className="text-xs font-medium text-teal-600 hover:text-teal-700 transition-colors"
+                    >
                       Connect
                     </button>
                   )}

@@ -1,93 +1,13 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { FadeIn, FadeInStagger, FadeInStaggerItem } from "@/components/AnimatedSection";
-import { useState } from "react";
+import { useAuth } from "@/lib/auth";
+import { api, RecordItem } from "@/lib/api";
 
 type RecordType = "all" | "lab" | "medication" | "imaging" | "visit" | "wearable";
-
-const records = [
-  {
-    id: 1,
-    type: "lab" as const,
-    title: "Complete Metabolic Panel (CMP)",
-    description: "Potassium 4.1 mmol/L, Sodium 141 mmol/L, Calcium 9.8 mg/dL, Glucose 112 mg/dL",
-    date: "2026-02-10",
-    source: "Epic MyChart",
-    provider: "Dr. Sarah Chen",
-    flags: ["Glucose: High"],
-  },
-  {
-    id: 2,
-    type: "wearable" as const,
-    title: "Weekly Health Summary",
-    description: "Avg HR: 72 bpm, Avg HRV: 42 ms, Sleep: 7.2h avg, Steps: 8,400 avg/day",
-    date: "2026-02-09",
-    source: "Apple Watch",
-    provider: "Self-reported",
-    flags: [],
-  },
-  {
-    id: 3,
-    type: "lab" as const,
-    title: "Hemoglobin A1c + Fasting Glucose",
-    description: "A1c: 6.1% (High), Fasting Glucose: 112 mg/dL (High), Creatinine: 1.0 mg/dL",
-    date: "2026-01-28",
-    source: "VA Health",
-    provider: "Dr. James Wright",
-    flags: ["A1c: High", "Glucose: High"],
-  },
-  {
-    id: 4,
-    type: "medication" as const,
-    title: "Metformin 500mg prescribed",
-    description: "Take once daily with dinner. Monitor blood glucose weekly. Follow up in 3 months.",
-    date: "2026-01-28",
-    source: "VA Health",
-    provider: "Dr. James Wright",
-    flags: [],
-  },
-  {
-    id: 5,
-    type: "visit" as const,
-    title: "Annual Physical Exam",
-    description: "BP: 128/82, Weight: 185 lbs, BMI: 26.1. Pre-diabetic markers discussed. Lifestyle modifications recommended.",
-    date: "2026-01-15",
-    source: "Epic MyChart",
-    provider: "Dr. Sarah Chen",
-    flags: [],
-  },
-  {
-    id: 6,
-    type: "lab" as const,
-    title: "Lipid Panel + TSH",
-    description: "Total Cholesterol: 215 mg/dL (High), LDL: 140 mg/dL, HDL: 48 mg/dL, TSH: 2.4 mIU/L",
-    date: "2025-12-15",
-    source: "Epic MyChart",
-    provider: "Dr. Sarah Chen",
-    flags: ["Cholesterol: High"],
-  },
-  {
-    id: 7,
-    type: "imaging" as const,
-    title: "Chest X-Ray",
-    description: "No acute cardiopulmonary process. Heart size normal. Lungs clear bilaterally.",
-    date: "2025-11-20",
-    source: "VA Health",
-    provider: "Dr. Maria Lopez",
-    flags: [],
-  },
-  {
-    id: 8,
-    type: "visit" as const,
-    title: "Cardiology Consultation",
-    description: "Elevated cholesterol discussed. Statin therapy considered but deferred for lifestyle changes. Recheck in 6 months.",
-    date: "2025-11-10",
-    source: "Epic MyChart",
-    provider: "Dr. Raj Patel",
-    flags: [],
-  },
-];
 
 const typeConfig: Record<string, { label: string; color: string; bg: string; dot: string }> = {
   lab: { label: "Lab", color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-50 dark:bg-teal-900/40", dot: "bg-teal-400" },
@@ -107,8 +27,58 @@ const filterOptions: { value: RecordType; label: string }[] = [
 ];
 
 export default function RecordsPage() {
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [filter, setFilter] = useState<RecordType>("all");
-  const filtered = filter === "all" ? records : records.filter((r) => r.type === filter);
+  const [records, setRecords] = useState<RecordItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    setLoading(true);
+    api
+      .records(filter)
+      .then(setRecords)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [user, authLoading, router, filter]);
+
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const bundle = await api.exportFhir();
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/fhir+json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `medbridge_fhir_export_${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Export failed. Please try again.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  if (authLoading || (loading && records.length === 0)) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+        <Navbar />
+        <div className="flex items-center justify-center h-[60vh]">
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm text-gray-500">Loading records...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 md:pb-0">
@@ -116,8 +86,22 @@ export default function RecordsPage() {
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <FadeIn>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Medical Records</h1>
-          <p className="mt-1 text-sm text-gray-500">Complete timeline across all connected portals and devices</p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Medical Records</h1>
+              <p className="mt-1 text-sm text-gray-500">Complete timeline across all connected portals and devices</p>
+            </div>
+            <button
+              onClick={handleExport}
+              disabled={exporting}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-600 text-white text-sm font-medium hover:bg-teal-700 transition-colors disabled:opacity-50 shrink-0"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+              </svg>
+              {exporting ? "Exporting..." : "Export FHIR R4"}
+            </button>
+          </div>
         </FadeIn>
 
         {/* Filters */}
@@ -127,7 +111,7 @@ export default function RecordsPage() {
               <button
                 key={opt.value}
                 onClick={() => setFilter(opt.value)}
-                className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
+                className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
                   filter === opt.value
                     ? "bg-teal-600 text-white"
                     : "bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-800 hover:border-teal-300 dark:hover:border-teal-700"
@@ -144,13 +128,12 @@ export default function RecordsPage() {
           <div className="absolute left-4 sm:left-6 top-0 bottom-0 w-px bg-gray-200 dark:bg-gray-800" />
 
           <FadeInStagger className="space-y-4">
-            {filtered.map((record) => {
-              const config = typeConfig[record.type];
+            {records.map((record) => {
+              const config = typeConfig[record.type] || typeConfig.lab;
               return (
                 <FadeInStaggerItem key={record.id}>
                   <div className="relative pl-10 sm:pl-14">
-                    {/* Timeline dot */}
-                    <div className={`absolute left-2.5 sm:left-4.5 top-5 w-3 h-3 rounded-full border-2 border-white dark:border-gray-950 ${config.dot} ring-2 ring-gray-200 dark:ring-gray-800`} />
+                    <div className={`absolute left-2.5 sm:left-4.5 top-5 w-3 h-3 rounded-full border-2 border-white dark:border-gray-950 ${config.dot}`} />
 
                     <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-5 hover:border-gray-300 dark:hover:border-gray-700 transition-colors">
                       <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -164,7 +147,7 @@ export default function RecordsPage() {
                       <h3 className="font-semibold text-gray-900 dark:text-white">{record.title}</h3>
                       <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{record.description}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <span className="text-xs text-gray-400">{record.provider}</span>
+                        <span className="text-xs text-gray-500">{record.provider}</span>
                         {record.flags.map((flag) => (
                           <span key={flag} className="px-2 py-0.5 rounded text-xs font-medium bg-red-50 dark:bg-red-900/40 text-red-700 dark:text-red-300">
                             {flag}
@@ -177,6 +160,12 @@ export default function RecordsPage() {
               );
             })}
           </FadeInStagger>
+
+          {records.length === 0 && !loading && (
+            <div className="text-center py-12 text-gray-500">
+              No records found for this filter.
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/lib/auth";
+import { api, NotificationData } from "@/lib/api";
 
 const navLinks = [
   { href: "/dashboard", label: "Dashboard" },
@@ -14,7 +16,41 @@ const navLinks = [
 
 export default function Navbar() {
   const pathname = usePathname();
+  const { user, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationData[]>([]);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  useEffect(() => {
+    if (user) {
+      api.notifications().then(setNotifications).catch(() => {});
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const handleMarkRead = async (id: number) => {
+    await api.markNotificationRead(id);
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+  };
+
+  const handleMarkAllRead = async () => {
+    await api.markAllNotificationsRead();
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  };
+
+  const initials = user ? `${user.first_name[0]}${user.last_name[0]}` : "??";
 
   return (
     <>
@@ -45,10 +81,81 @@ export default function Navbar() {
               ))}
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="hidden sm:flex w-8 h-8 rounded-full bg-teal-600 text-white items-center justify-center text-sm font-medium">
-              MJ
+          <div className="flex items-center gap-2">
+            {/* Notification bell */}
+            <div className="relative" ref={notifRef}>
+              <button
+                onClick={() => setNotifOpen(!notifOpen)}
+                className="relative p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+                </svg>
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              <AnimatePresence>
+                {notifOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 top-12 w-80 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg overflow-hidden z-50"
+                  >
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800">
+                      <span className="text-sm font-semibold text-gray-900 dark:text-white">Notifications</span>
+                      {unreadCount > 0 && (
+                        <button onClick={handleMarkAllRead} className="text-xs text-teal-600 hover:text-teal-700 font-medium">
+                          Mark all read
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-80 overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
+                      {notifications.length === 0 ? (
+                        <div className="px-4 py-6 text-center text-sm text-gray-500">No notifications</div>
+                      ) : (
+                        notifications.map((n) => (
+                          <button
+                            key={n.id}
+                            onClick={() => handleMarkRead(n.id)}
+                            className={`w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
+                              !n.read ? "bg-teal-50/50 dark:bg-teal-950/20" : ""
+                            }`}
+                          >
+                            <div className="flex items-start gap-2">
+                              {!n.read && <span className="mt-1.5 w-2 h-2 rounded-full bg-teal-500 shrink-0" />}
+                              <div className={!n.read ? "" : "ml-4"}>
+                                <div className="text-sm font-medium text-gray-900 dark:text-white">{n.title}</div>
+                                <div className="text-xs text-gray-500 mt-0.5 line-clamp-2">{n.message}</div>
+                              </div>
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
+
+            {/* User avatar + logout */}
+            <div className="hidden sm:flex items-center gap-2">
+              <div className="w-8 h-8 rounded-full bg-teal-600 text-white flex items-center justify-center text-sm font-medium">
+                {initials}
+              </div>
+              <button
+                onClick={logout}
+                className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              >
+                Sign out
+              </button>
+            </div>
+
             <button
               onClick={() => setMobileOpen(!mobileOpen)}
               className="md:hidden p-2 rounded-lg text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -83,13 +190,19 @@ export default function Navbar() {
                   onClick={() => setMobileOpen(false)}
                   className={`block px-3 py-2.5 rounded-lg text-sm transition-colors ${
                     pathname === link.href
-                      ? "bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-400 font-medium"
+                      ? "bg-teal-50 dark:bg-teal-950 text-teal-700 font-medium"
                       : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
                   }`}
                 >
                   {link.label}
                 </Link>
               ))}
+              <button
+                onClick={() => { logout(); setMobileOpen(false); }}
+                className="block w-full text-left px-3 py-2.5 rounded-lg text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+              >
+                Sign out
+              </button>
             </div>
           </motion.div>
         )}

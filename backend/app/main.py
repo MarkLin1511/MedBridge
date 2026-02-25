@@ -19,10 +19,9 @@ limiter = Limiter(key_func=get_remote_address)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     SQLModel.metadata.create_all(engine)
-    # Auto-seed on Vercel (ephemeral /tmp SQLite)
-    if os.environ.get("VERCEL"):
-        from .seed import seed
-        seed()
+    # Auto-seed demo data if DB is empty (works for both Vercel and local)
+    from .seed import seed
+    seed()
     yield
 
 

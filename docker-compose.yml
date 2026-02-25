@@ -1,28 +1,52 @@
-version: '3.8'
+version: "3.8"
+
 services:
   db:
-    image: postgres:15
+    image: postgres:16-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: medical
-    volumes:
-      - db-data:/var/lib/postgresql/data
+      POSTGRES_USER: medbridge
+      POSTGRES_PASSWORD: medbridge
+      POSTGRES_DB: medbridge
     ports:
-      - '5432:5432'
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medbridge"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   backend:
-    build: .
-    command: uvicorn backend.app.main:app --host 0.0.0.0 --port 8000 --reload
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.dev
     ports:
-      - '8000:8000'
+      - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/medical
-    depends_on:
-      - db
+      DATABASE_URL: postgresql://medbridge:medbridge@db:5432/medbridge
+      JWT_SECRET: local-dev-secret-not-for-production
+      CORS_ORIGINS: http://localhost:3000
     volumes:
       - ./backend:/app/backend
-      - ./frontend:/app/frontend
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    volumes:
+      - ./frontend/src:/app/frontend/src
+      - ./frontend/public:/app/frontend/public
+    depends_on:
+      - backend
 
 volumes:
-  db-data:
+  pgdata:

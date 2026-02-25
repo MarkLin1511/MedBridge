@@ -8,7 +8,7 @@ from slowapi.errors import RateLimitExceeded
 from sqlmodel import SQLModel
 
 from .db import engine
-from .routers import auth, dashboard, records, providers, portals, notifications, settings, export_fhir, audit
+from .routers import auth, dashboard, records, providers, portals, notifications, settings, export_fhir, audit, smart_fhir
 
 # ---------------------------------------------------------------------------
 # Rate limiter (module-level so routers can access via request.app.state.limiter)
@@ -58,6 +58,7 @@ app.include_router(notifications.router)
 app.include_router(settings.router)
 app.include_router(export_fhir.router)
 app.include_router(audit.router)
+app.include_router(smart_fhir.router)
 
 
 @app.get("/api/health")

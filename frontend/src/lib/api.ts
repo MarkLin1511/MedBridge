@@ -138,6 +138,25 @@ export interface SettingsData {
   };
 }
 
+export interface FHIRConnection {
+  id: number;
+  ehr_name: string;
+  fhir_base_url: string;
+  status: string;
+  patient_fhir_id: string | null;
+  created_at: string;
+  last_synced_at: string | null;
+}
+
+export interface FhirSyncHistoryItem {
+  id: number;
+  connection_id: number;
+  ehr_name: string;
+  action: string;
+  when: string;
+  status: string;
+}
+
 class ApiClient {
   private token: string | null = null;
 
@@ -298,6 +317,29 @@ class ApiClient {
   // Audit Log
   async auditLog(): Promise<{ id: number; action: string; by: string; when: string; icon: string }[]> {
     return this.request("/api/audit-log");
+  }
+
+  // FHIR Integrations
+  async fhirConnections(): Promise<FHIRConnection[]> {
+    return this.request("/api/fhir/connections");
+  }
+
+  async fhirAuthorize(ehr: string, fhirUrl?: string): Promise<{ authorize_url: string }> {
+    const params = new URLSearchParams({ ehr });
+    if (fhirUrl) params.set("fhir_url", fhirUrl);
+    return this.request(`/api/fhir/authorize?${params}`);
+  }
+
+  async fhirSync(connectionId: number): Promise<{ status: string; message: string }> {
+    return this.request(`/api/fhir/connections/${connectionId}/sync`, { method: "POST" });
+  }
+
+  async fhirDisconnect(connectionId: number): Promise<{ status: string }> {
+    return this.request(`/api/fhir/connections/${connectionId}`, { method: "DELETE" });
+  }
+
+  async fhirSyncHistory(): Promise<FhirSyncHistoryItem[]> {
+    return this.request("/api/fhir/sync-history");
   }
 }
 

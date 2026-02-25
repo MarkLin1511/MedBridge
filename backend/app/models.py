@@ -110,3 +110,17 @@ class Notification(SQLModel, table=True):
     message: str
     read: bool = Field(default=False)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class FHIRConnection(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    patient_id: str = Field(index=True)
+    ehr_name: str  # epic, cerner, generic
+    fhir_base_url: str
+    access_token: str  # encrypted via encryption module
+    refresh_token: Optional[str] = None  # encrypted via encryption module
+    token_expires_at: Optional[datetime] = None
+    patient_fhir_id: Optional[str] = None
+    status: str = Field(default="active")  # active, expired, revoked
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    last_synced_at: Optional[datetime] = None

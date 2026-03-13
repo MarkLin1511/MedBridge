@@ -43,12 +43,27 @@ export interface DashboardData {
     connected_portals: string[];
     wearable: string | null;
   };
+  summary: {
+    total_records: number;
+    connected_portals: number;
+    abnormal_labs: number;
+    wearable_metrics: number;
+  };
   vitals: { label: string; value: string; trend: string; period: string }[];
   lab_trends: {
     glucose: { date: string; value: number; source: string }[];
     a1c: { date: string; value: number; source: string }[];
     cholesterol: { date: string; value: number; source: string }[];
   };
+  care_alerts: {
+    severity: string;
+    title: string;
+    detail: string;
+  }[];
+  data_coverage: {
+    label: string;
+    count: number;
+  }[];
   recent_labs: {
     test: string;
     loinc: string;

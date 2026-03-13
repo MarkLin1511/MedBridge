@@ -1,4 +1,3 @@
-import json
 from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session, select, or_
 from typing import Optional
@@ -23,13 +22,16 @@ def list_records(
     if type and type != "all":
         stmt = stmt.where(MedicalRecord.record_type == type)
 
-    # Search by title or description
+    # Search across the fields patients are most likely to remember.
     if search:
         search_pattern = f"%{search}%"
         stmt = stmt.where(
             or_(
                 MedicalRecord.title.ilike(search_pattern),
                 MedicalRecord.description.ilike(search_pattern),
+                MedicalRecord.source.ilike(search_pattern),
+                MedicalRecord.provider.ilike(search_pattern),
+                MedicalRecord.flags.ilike(search_pattern),
             )
         )
 

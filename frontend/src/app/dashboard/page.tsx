@@ -47,6 +47,13 @@ function TrendIcon({ trend }: { trend: string }) {
 }
 
 function SourceBadge({ source }: { source: string }) {
+  if (!source) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
+        Unknown source
+      </span>
+    );
+  }
   const colors = source.includes("Epic")
     ? "bg-violet-50 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300"
     : source.includes("VA")
@@ -57,6 +64,17 @@ function SourceBadge({ source }: { source: string }) {
       {source}
     </span>
   );
+}
+
+function AlertBadge({ severity }: { severity: string }) {
+  const config =
+    severity === "high"
+      ? "bg-red-50 dark:bg-red-900/40 text-red-700 dark:text-red-300"
+      : severity === "low"
+        ? "bg-amber-50 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
+        : "bg-sky-50 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300";
+
+  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${config}`}>{severity}</span>;
 }
 
 export default function DashboardPage() {
@@ -99,7 +117,7 @@ export default function DashboardPage() {
     );
   }
 
-  const { patient, vitals, lab_trends, recent_labs, audit_log } = data;
+  const { patient, summary, vitals, lab_trends, care_alerts, data_coverage, recent_labs, audit_log } = data;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 md:pb-0">
@@ -137,6 +155,75 @@ export default function DashboardPage() {
             </div>
           </div>
         </FadeIn>
+
+        <FadeInStagger className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+          {[
+            { label: "Total records", value: summary.total_records, hint: "across connected sources" },
+            { label: "Connected portals", value: summary.connected_portals, hint: "actively syncing" },
+            { label: "Abnormal labs", value: summary.abnormal_labs, hint: "worth reviewing" },
+            { label: "Wearable metrics", value: summary.wearable_metrics, hint: "currently tracked" },
+          ].map((item) => (
+            <FadeInStaggerItem key={item.label}>
+              <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5">
+                <div className="text-sm text-gray-500">{item.label}</div>
+                <div className="mt-2 text-3xl font-semibold text-gray-900 dark:text-white">{item.value}</div>
+                <div className="mt-1 text-xs text-gray-400">{item.hint}</div>
+              </div>
+            </FadeInStaggerItem>
+          ))}
+        </FadeInStagger>
+
+        <div className="grid grid-cols-1 xl:grid-cols-[1.4fr_0.8fr] gap-4 mb-8">
+          <FadeIn delay={0.05}>
+            <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Care Alerts</h2>
+                <span className="text-xs text-gray-400">{care_alerts.length} active</span>
+              </div>
+              {care_alerts.length > 0 ? (
+                <div className="space-y-3">
+                  {care_alerts.map((alert, index) => (
+                    <div key={`${alert.title}-${index}`} className="rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-950/60 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="font-medium text-gray-900 dark:text-white">{alert.title}</div>
+                          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{alert.detail}</p>
+                        </div>
+                        <AlertBadge severity={alert.severity} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">No active alerts right now.</p>
+              )}
+            </div>
+          </FadeIn>
+
+          <FadeIn delay={0.1}>
+            <div className="rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Coverage Snapshot</h2>
+              <div className="space-y-3">
+                {data_coverage.map((item) => (
+                  <div key={item.label}>
+                    <div className="mb-1 flex items-center justify-between text-sm">
+                      <span className="text-gray-600 dark:text-gray-300">{item.label}</span>
+                      <span className="font-medium text-gray-900 dark:text-white">{item.count}</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-teal-500 to-emerald-500"
+                        style={{
+                          width: `${summary.total_records > 0 ? Math.max((item.count / summary.total_records) * 100, item.count > 0 ? 8 : 0) : 0}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </FadeIn>
+        </div>
 
         {/* Vitals */}
         {vitals.length > 0 ? (

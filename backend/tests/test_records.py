@@ -1,6 +1,5 @@
 """Tests for medical records endpoints: list, filter, search, pagination."""
 import json
-import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
@@ -93,6 +92,34 @@ class TestListRecords:
         data = resp.json()
         assert len(data) == 1, "Expected exactly one matching record for 'hemoglobin'"
         assert data[0]["title"] == "Hemoglobin A1c"
+
+    def test_search_records_matches_provider_source_and_flags(
+        self, client: TestClient, auth_headers: dict, session: Session, demo_user
+    ):
+        """Search should also match source, provider, and serialized flags."""
+        session.add(
+            _make_record(
+                demo_user.patient_id,
+                title="Medication refill",
+                description="Prescription renewed",
+                source="Cleveland Clinic Portal",
+                provider="Dr. Rivera",
+                flags=json.dumps(["follow-up", "urgent"]),
+            )
+        )
+        session.commit()
+
+        provider_resp = client.get("/api/records?search=rivera", headers=auth_headers)
+        assert provider_resp.status_code == 200
+        assert len(provider_resp.json()) == 1
+
+        source_resp = client.get("/api/records?search=cleveland", headers=auth_headers)
+        assert source_resp.status_code == 200
+        assert len(source_resp.json()) == 1
+
+        flag_resp = client.get("/api/records?search=urgent", headers=auth_headers)
+        assert flag_resp.status_code == 200
+        assert len(flag_resp.json()) == 1
 
     def test_pagination(
         self, client: TestClient, auth_headers: dict, session: Session, demo_user

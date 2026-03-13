@@ -1,9 +1,9 @@
-import json
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from collections import Counter
+from fastapi import APIRouter, Depends
 from sqlmodel import Session, select
 from app.db import get_session
-from app.models import User, LabObservation, WearableData, AuditLog, PortalConnection
+from app.models import User, LabObservation, WearableData, AuditLog, PortalConnection, MedicalRecord
 from app.auth import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -73,6 +73,48 @@ def get_dashboard(user: User = Depends(get_current_user), session: Session = Dep
     chol_trend = [{"date": l.timestamp.strftime("%b %y"), "value": l.value, "source": l.source or ""}
                   for l in all_labs if "cholesterol" in l.test_name.lower()]
 
+    abnormal_labs = [l for l in all_labs if (l.status or "").lower() in {"high", "low"}]
+
+    try:
+        records = session.exec(
+            select(MedicalRecord).where(MedicalRecord.patient_id == pid)
+        ).all()
+    except Exception as e:
+        logger.error(f"Failed to fetch medical records for patient {pid}: {e}")
+        records = []
+
+    record_counts = Counter(r.record_type for r in records)
+    summary_stats = {
+        "total_records": len(records),
+        "connected_portals": len(portal_names),
+        "abnormal_labs": len(abnormal_labs),
+        "wearable_metrics": len(vitals),
+    }
+    data_coverage = [
+        {"label": "Labs", "count": record_counts.get("lab", 0)},
+        {"label": "Medications", "count": record_counts.get("medication", 0)},
+        {"label": "Visits", "count": record_counts.get("visit", 0)},
+        {"label": "Imaging", "count": record_counts.get("imaging", 0)},
+        {"label": "Wearables", "count": record_counts.get("wearable", 0)},
+    ]
+    care_alerts = []
+    if abnormal_labs:
+        most_recent_abnormal = max(abnormal_labs, key=lambda lab: lab.timestamp)
+        care_alerts.append({
+            "severity": (most_recent_abnormal.status or "attention").lower(),
+            "title": f"{most_recent_abnormal.test_name} needs review",
+            "detail": (
+                f"{most_recent_abnormal.value} {most_recent_abnormal.unit or ''}".strip()
+                + f" from {most_recent_abnormal.timestamp.strftime('%b %d, %Y')}"
+            ),
+        })
+    if not portal_names:
+        care_alerts.append({
+            "severity": "info",
+            "title": "Connect your first portal",
+            "detail": "Link Epic, Cerner, or another portal to start building a complete timeline.",
+        })
+
     try:
         # Recent labs
         recent_labs = session.exec(
@@ -82,6 +124,14 @@ def get_dashboard(user: User = Depends(get_current_user), session: Session = Dep
     except Exception as e:
         logger.error(f"Failed to fetch recent labs for patient {pid}: {e}")
         recent_labs = []
+
+    latest_lab = recent_labs[0] if recent_labs else None
+    if latest_lab and latest_lab.source:
+        care_alerts.append({
+            "severity": "info",
+            "title": "Latest lab sync",
+            "detail": f"{latest_lab.test_name} imported from {latest_lab.source} on {latest_lab.timestamp.strftime('%b %d, %Y')}.",
+        })
 
     labs_out = [{
         "test": l.test_name, "loinc": l.loinc, "value": l.value, "unit": l.unit,
@@ -121,12 +171,15 @@ def get_dashboard(user: User = Depends(get_current_user), session: Session = Dep
             "connected_portals": portal_names,
             "wearable": wearable_name,
         },
+        "summary": summary_stats,
         "vitals": vitals,
         "lab_trends": {
             "glucose": glucose_trend,
             "a1c": a1c_trend,
             "cholesterol": chol_trend,
         },
+        "care_alerts": care_alerts[:3],
+        "data_coverage": data_coverage,
         "recent_labs": labs_out,
         "audit_log": audit_out,
     }

@@ -9,6 +9,7 @@ interface AuthContextType {
   token: string | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  demoLogin: () => Promise<void>;
   signup: (data: SignupData) => Promise<void>;
   logout: () => void;
 }
@@ -48,6 +49,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push("/dashboard");
   }, [router]);
 
+  const demoLogin = useCallback(async () => {
+    const data = await api.demoLogin();
+    setToken(data.access_token);
+    setUser(data.user);
+    localStorage.setItem("medbridge_token", data.access_token);
+    api.setToken(data.access_token);
+    router.push("/dashboard");
+  }, [router]);
+
   const signup = useCallback(async (formData: SignupData) => {
     const data = await api.signup(formData);
     setToken(data.access_token);
@@ -72,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [logout]);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, demoLogin, signup, logout }}>
       {children}
     </AuthContext.Provider>
   );

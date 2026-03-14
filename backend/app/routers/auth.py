@@ -15,6 +15,7 @@ from app.auth import (
     get_current_user,
     generate_patient_id,
 )
+from app.seed import seed
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -51,6 +52,26 @@ class AuthResponse(BaseModel):
     user: UserResponse
 
 
+DEMO_EMAIL = "marcus.johnson@email.com"
+DEMO_PASSWORD = "demo1234"
+
+
+def _build_auth_response(user: User) -> AuthResponse:
+    token = create_access_token({"sub": user.email})
+    return AuthResponse(
+        access_token=token,
+        user=UserResponse(
+            id=user.id,
+            email=user.email,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            role=user.role,
+            patient_id=user.patient_id,
+            dob=user.dob,
+        ),
+    )
+
+
 @router.post("/signup", response_model=AuthResponse)
 def signup(req: SignupRequest, session: Session = Depends(get_session)):
     # Validate password strength before creating user
@@ -78,19 +99,7 @@ def signup(req: SignupRequest, session: Session = Depends(get_session)):
     session.commit()
     session.refresh(user)
 
-    token = create_access_token({"sub": user.email})
-    return AuthResponse(
-        access_token=token,
-        user=UserResponse(
-            id=user.id,
-            email=user.email,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            role=user.role,
-            patient_id=user.patient_id,
-            dob=user.dob,
-        ),
-    )
+    return _build_auth_response(user)
 
 
 @router.post("/login", response_model=AuthResponse)
@@ -111,19 +120,28 @@ def login(request: Request, form: OAuth2PasswordRequestForm = Depends(), session
     ))
     session.commit()
 
-    token = create_access_token({"sub": user.email})
-    return AuthResponse(
-        access_token=token,
-        user=UserResponse(
-            id=user.id,
-            email=user.email,
-            first_name=user.first_name,
-            last_name=user.last_name,
-            role=user.role,
-            patient_id=user.patient_id,
-            dob=user.dob,
-        ),
-    )
+    return _build_auth_response(user)
+
+
+@router.post("/demo", response_model=AuthResponse)
+def demo_login(session: Session = Depends(get_session)):
+    user = session.exec(select(User).where(User.email == DEMO_EMAIL)).first()
+    if not user:
+        seed()
+        user = session.exec(select(User).where(User.email == DEMO_EMAIL)).first()
+
+    if not user or not verify_password(DEMO_PASSWORD, user.hashed_password):
+        raise HTTPException(status_code=500, detail="Demo account is unavailable")
+
+    session.add(AuditLog(
+        patient_id=user.patient_id,
+        action="Demo account accessed",
+        performed_by="Demo mode",
+        icon="eye",
+    ))
+    session.commit()
+
+    return _build_auth_response(user)
 
 
 @router.post("/change-password")

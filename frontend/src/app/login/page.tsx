@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, demoLogin } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -31,9 +31,9 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
-      await login("marcus.johnson@email.com", "demo1234");
+      await demoLogin();
     } catch {
-      const msg = "Demo account not found. Please run the seed script first.";
+      const msg = "Demo account is temporarily unavailable. Please try again.";
       setError(msg);
       toast.error(msg);
     } finally {
@@ -147,7 +147,7 @@ export default function LoginPage() {
               Try demo account <span className="text-xs opacity-70">(Demo mode)</span>
             </button>
             <p className="mt-1.5 text-center text-xs text-gray-400">
-              marcus.johnson@email.com / demo1234
+              Instant access to the seeded MedBridge patient profile
             </p>
           </div>
 

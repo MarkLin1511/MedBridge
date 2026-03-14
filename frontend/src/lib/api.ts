@@ -240,6 +240,12 @@ class ApiClient {
     });
   }
 
+  async demoLogin(): Promise<AuthResponse> {
+    return this.request("/api/auth/demo", {
+      method: "POST",
+    });
+  }
+
   async me(): Promise<UserData> {
     return this.request("/api/auth/me");
   }

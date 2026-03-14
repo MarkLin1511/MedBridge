@@ -97,6 +97,15 @@ class TestLogin:
         )
         assert resp.status_code == 401, f"Expected 401, got {resp.status_code}: {resp.text}"
 
+    def test_demo_login_seeds_and_authenticates(self, client: TestClient):
+        """Demo login should create the demo account if missing and return auth data."""
+        resp = client.post("/api/auth/demo")
+        assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+        body = resp.json()
+        assert body["user"]["email"] == "marcus.johnson@email.com"
+        assert body["user"]["patient_id"] == "MBR-20240001"
+        assert body["token_type"] == "bearer"
+
 
 # ---------------------------------------------------------------------------
 # Me

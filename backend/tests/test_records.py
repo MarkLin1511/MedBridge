@@ -3,7 +3,8 @@ import json
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from app.models import MedicalRecord
+from app.models import MedicalRecord, MedicalDocument
+from app.encryption import decrypt_bytes, encrypt_bytes
 
 
 def _make_record(patient_id: str, **overrides) -> MedicalRecord:
@@ -154,3 +155,62 @@ class TestListRecords:
         """Accessing records without a token returns 401."""
         resp = client.get("/api/records")
         assert resp.status_code == 401, f"Expected 401, got {resp.status_code}: {resp.text}"
+
+
+class TestDocumentUploads:
+    """Document upload and download flows."""
+
+    def test_upload_document_and_list_it(
+        self, client: TestClient, auth_headers: dict, session: Session, demo_user
+    ):
+        response = client.post(
+            "/api/records/documents",
+            headers=auth_headers,
+            data={
+                "source": "Epic MyChart",
+                "provider": "Dr. Avery",
+                "document_date": "2026-03-14",
+                "record_type": "visit",
+                "title": "After visit summary",
+            },
+            files={"file": ("visit-summary.pdf", b"demo-pdf", "application/pdf")},
+        )
+
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        payload = response.json()
+        assert payload["type"] == "document"
+        assert payload["classification"] == "visit"
+
+        stored = session.get(MedicalDocument, payload["id"])
+        assert stored is not None
+        assert stored.patient_id == demo_user.patient_id
+        assert decrypt_bytes(stored.encrypted_blob) == b"demo-pdf"
+
+        list_response = client.get("/api/records?type=document", headers=auth_headers)
+        assert list_response.status_code == 200
+        records = list_response.json()
+        assert len(records) == 1
+        assert records[0]["title"] == "After visit summary"
+        assert records[0]["download_url"] == f"/api/records/documents/{payload['id']}/download"
+
+    def test_download_document_requires_matching_user(
+        self, client: TestClient, auth_headers: dict, session: Session, demo_user
+    ):
+        document = MedicalDocument(
+            patient_id=demo_user.patient_id,
+            title="Imported lab",
+            record_type="lab",
+            source="VA Health",
+            provider="Dr. House",
+            document_date="2026-03-12",
+            file_name="lab.pdf",
+            content_type="application/pdf",
+            encrypted_blob=encrypt_bytes(b"lab-data"),
+        )
+        session.add(document)
+        session.commit()
+        session.refresh(document)
+
+        download = client.get(f"/api/records/documents/{document.id}/download", headers=auth_headers)
+        assert download.status_code == 200
+        assert download.content == b"lab-data"

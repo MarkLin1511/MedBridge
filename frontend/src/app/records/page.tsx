@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/auth";
 import { api, RecordItem } from "@/lib/api";
 import { toast } from "sonner";
 
-type RecordType = "all" | "lab" | "medication" | "imaging" | "visit" | "wearable";
+type RecordType = "all" | "lab" | "medication" | "imaging" | "visit" | "wearable" | "document";
 
 const typeConfig: Record<string, { label: string; color: string; bg: string; dot: string }> = {
   lab: { label: "Lab", color: "text-teal-700 dark:text-teal-300", bg: "bg-teal-50 dark:bg-teal-900/40", dot: "bg-teal-400" },
@@ -16,6 +16,7 @@ const typeConfig: Record<string, { label: string; color: string; bg: string; dot
   imaging: { label: "Imaging", color: "text-cyan-700 dark:text-cyan-300", bg: "bg-cyan-50 dark:bg-cyan-900/40", dot: "bg-cyan-400" },
   visit: { label: "Visit", color: "text-amber-700 dark:text-amber-300", bg: "bg-amber-50 dark:bg-amber-900/40", dot: "bg-amber-400" },
   wearable: { label: "Wearable", color: "text-emerald-700 dark:text-emerald-300", bg: "bg-emerald-50 dark:bg-emerald-900/40", dot: "bg-emerald-400" },
+  document: { label: "Document", color: "text-slate-700 dark:text-slate-300", bg: "bg-slate-100 dark:bg-slate-800", dot: "bg-slate-400" },
 };
 
 const filterOptions: { value: RecordType; label: string }[] = [
@@ -25,6 +26,16 @@ const filterOptions: { value: RecordType; label: string }[] = [
   { value: "imaging", label: "Imaging" },
   { value: "visit", label: "Visits" },
   { value: "wearable", label: "Wearable" },
+  { value: "document", label: "Documents" },
+];
+
+const documentTypeOptions = [
+  { value: "general", label: "General record" },
+  { value: "lab", label: "Lab result" },
+  { value: "medication", label: "Medication" },
+  { value: "imaging", label: "Imaging" },
+  { value: "visit", label: "Visit note" },
+  { value: "wearable", label: "Wearable report" },
 ];
 
 export default function RecordsPage() {
@@ -37,6 +48,15 @@ export default function RecordsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [showExportConfirm, setShowExportConfirm] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadForm, setUploadForm] = useState({
+    title: "",
+    source: "",
+    provider: "",
+    document_date: new Date().toISOString().slice(0, 10),
+    record_type: "general",
+  });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Debounce search query with 300ms delay
@@ -67,6 +87,63 @@ export default function RecordsPage() {
       .catch(() => toast.error("Failed to load records"))
       .finally(() => setLoading(false));
   }, [user, authLoading, router, filter, debouncedSearch]);
+
+  const refreshRecords = async () => {
+    setLoading(true);
+    try {
+      const next = await api.records(filter, debouncedSearch, 0, 50);
+      setRecords(next);
+    } catch {
+      toast.error("Failed to load records");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUploadDocument = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedFile) {
+      toast.error("Choose a PDF or image to upload");
+      return;
+    }
+    setUploading(true);
+    try {
+      await api.uploadDocument({
+        file: selectedFile,
+        ...uploadForm,
+        title: uploadForm.title.trim() || selectedFile.name,
+      });
+      setSelectedFile(null);
+      setUploadForm((current) => ({
+        ...current,
+        title: "",
+        source: "",
+        provider: "",
+      }));
+      await refreshRecords();
+      toast.success("Document uploaded to your record timeline");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to upload document";
+      toast.error(message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDownloadDocument = async (record: RecordItem) => {
+    if (!record.download_url) return;
+    try {
+      const blob = await api.downloadDocument(record.download_url);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `${record.title.replace(/\s+/g, "_").toLowerCase() || "medical_document"}`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error("Failed to download original document");
+    }
+  };
 
   const handleExport = async () => {
     setShowExportConfirm(false);
@@ -150,6 +227,106 @@ export default function RecordsPage() {
           </div>
         </FadeIn>
 
+        <FadeIn delay={0.03}>
+          <form
+            onSubmit={handleUploadDocument}
+            className="mt-6 rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-5"
+          >
+            <div className="flex flex-col gap-1">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Upload medical documents</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Add PDFs, screenshots, or scanned records and tag them with the right source metadata.
+              </p>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Document file</span>
+                <input
+                  type="file"
+                  accept=".pdf,image/*"
+                  onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+                  className="block w-full rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 px-3 py-3 text-sm text-gray-600 dark:text-gray-300"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Document title</span>
+                <input
+                  type="text"
+                  value={uploadForm.title}
+                  onChange={(event) => setUploadForm((current) => ({ ...current, title: event.target.value }))}
+                  placeholder="Annual physical summary"
+                  className="w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 px-4 py-3 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Source system</span>
+                <input
+                  type="text"
+                  value={uploadForm.source}
+                  onChange={(event) => setUploadForm((current) => ({ ...current, source: event.target.value }))}
+                  placeholder="Epic MyChart"
+                  required
+                  className="w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 px-4 py-3 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Provider</span>
+                <input
+                  type="text"
+                  value={uploadForm.provider}
+                  onChange={(event) => setUploadForm((current) => ({ ...current, provider: event.target.value }))}
+                  placeholder="Dr. Sarah Chen"
+                  required
+                  className="w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 px-4 py-3 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Document date</span>
+                <input
+                  type="date"
+                  value={uploadForm.document_date}
+                  onChange={(event) => setUploadForm((current) => ({ ...current, document_date: event.target.value }))}
+                  required
+                  className="w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 px-4 py-3 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Record type</span>
+                <select
+                  value={uploadForm.record_type}
+                  onChange={(event) => setUploadForm((current) => ({ ...current, record_type: event.target.value }))}
+                  className="w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 px-4 py-3 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                >
+                  {documentTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs text-gray-400">
+                Supported files: PDF, PNG, JPG, WEBP, HEIC. Maximum size: 8 MB.
+              </p>
+              <button
+                type="submit"
+                disabled={uploading}
+                className="inline-flex items-center justify-center rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-teal-700 disabled:opacity-50"
+              >
+                {uploading ? "Uploading..." : "Upload document"}
+              </button>
+            </div>
+          </form>
+        </FadeIn>
+
         {/* Search Bar */}
         <FadeIn delay={0.05}>
           <div className="mt-6">
@@ -209,6 +386,12 @@ export default function RecordsPage() {
                         <span className="text-xs text-gray-400">{record.date}</span>
                         <span className="text-xs text-gray-400">&middot;</span>
                         <span className="text-xs text-gray-500">{record.source}</span>
+                        {record.classification && (
+                          <>
+                            <span className="text-xs text-gray-400">&middot;</span>
+                            <span className="text-xs text-gray-500 capitalize">{record.classification}</span>
+                          </>
+                        )}
                       </div>
                       <h3 className="font-semibold text-gray-900 dark:text-white">{record.title}</h3>
                       <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{record.description}</p>
@@ -219,6 +402,15 @@ export default function RecordsPage() {
                             {flag}
                           </span>
                         ))}
+                        {record.download_url && (
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadDocument(record)}
+                            className="px-2 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                          >
+                            Download original
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>

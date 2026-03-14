@@ -55,6 +55,20 @@ class MedicalRecord(SQLModel, table=True):
         return json.loads(self.flags) if self.flags else []
 
 
+class MedicalDocument(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    patient_id: str = Field(index=True)
+    title: str
+    record_type: str = Field(default="general")  # lab, medication, imaging, visit, wearable, general
+    source: str
+    provider: str
+    document_date: str
+    file_name: str
+    content_type: str
+    encrypted_blob: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
 class WearableData(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     patient_id: str = Field(index=True)

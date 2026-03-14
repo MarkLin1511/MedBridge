@@ -86,6 +86,17 @@ export interface RecordItem {
   source: string;
   provider: string;
   flags: string[];
+  classification: string | null;
+  download_url: string | null;
+}
+
+export interface DocumentUploadData {
+  file: File;
+  source: string;
+  provider: string;
+  document_date: string;
+  record_type: string;
+  title: string;
 }
 
 export interface ProviderData {
@@ -272,6 +283,37 @@ class ApiClient {
     if (limit) params.set("limit", String(limit));
     const query = params.toString() ? `?${params}` : "";
     return this.request(`/api/records${query}`);
+  }
+
+  async uploadDocument(data: DocumentUploadData): Promise<RecordItem> {
+    const formData = new FormData();
+    formData.append("file", data.file);
+    formData.append("source", data.source);
+    formData.append("provider", data.provider);
+    formData.append("document_date", data.document_date);
+    formData.append("record_type", data.record_type);
+    formData.append("title", data.title);
+
+    return this.request("/api/records/documents", {
+      method: "POST",
+      body: formData,
+    });
+  }
+
+  async downloadDocument(path: string): Promise<Blob> {
+    const headers: Record<string, string> = {};
+    if (this.token) headers["Authorization"] = `Bearer ${this.token}`;
+
+    const response = await fetch(`${API_URL}${path}`, {
+      method: "GET",
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new ApiError(response.status, `Download failed: ${response.status}`);
+    }
+
+    return response.blob();
   }
 
   // Providers

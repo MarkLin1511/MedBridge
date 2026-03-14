@@ -38,6 +38,56 @@ const documentTypeOptions = [
   { value: "wearable", label: "Wearable report" },
 ];
 
+const samplePdfContent = `%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Count 1 /Kids [3 0 R] >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 114 >>
+stream
+BT
+/F1 18 Tf
+72 720 Td
+(MedBridge Sample Referral Summary) Tj
+0 -28 Td
+/F1 12 Tf
+(Patient: Marcus Johnson) Tj
+0 -20 Td
+(Referring provider: Dr. Sarah Chen) Tj
+0 -20 Td
+(Reason: Cardiology follow-up after elevated A1c and cholesterol.) Tj
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000010 00000 n 
+0000000063 00000 n 
+0000000122 00000 n 
+0000000248 00000 n 
+0000000318 00000 n 
+trailer
+<< /Root 1 0 R /Size 6 >>
+startxref
+525
+%%EOF`;
+
+function buildSampleDocumentFile() {
+  return new File([samplePdfContent], "medbridge-sample-referral-summary.pdf", {
+    type: "application/pdf",
+  });
+}
+
 export default function RecordsPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -100,6 +150,23 @@ export default function RecordsPage() {
     }
   };
 
+  const uploadDocumentFile = async (file: File, formData = uploadForm) => {
+    await api.uploadDocument({
+      file,
+      ...formData,
+      title: formData.title.trim() || file.name,
+    });
+    setSelectedFile(null);
+    setUploadForm((current) => ({
+      ...current,
+      title: "",
+      source: "",
+      provider: "",
+      record_type: "general",
+    }));
+    await refreshRecords();
+  };
+
   const handleUploadDocument = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedFile) {
@@ -108,22 +175,29 @@ export default function RecordsPage() {
     }
     setUploading(true);
     try {
-      await api.uploadDocument({
-        file: selectedFile,
-        ...uploadForm,
-        title: uploadForm.title.trim() || selectedFile.name,
-      });
-      setSelectedFile(null);
-      setUploadForm((current) => ({
-        ...current,
-        title: "",
-        source: "",
-        provider: "",
-      }));
-      await refreshRecords();
+      await uploadDocumentFile(selectedFile);
       toast.success("Document uploaded to your record timeline");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to upload document";
+      toast.error(message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleUploadSampleDocument = async () => {
+    setUploading(true);
+    try {
+      await uploadDocumentFile(buildSampleDocumentFile(), {
+        title: "Sample referral summary",
+        source: "MedBridge Demo",
+        provider: "Dr. Sarah Chen",
+        document_date: new Date().toISOString().slice(0, 10),
+        record_type: "visit",
+      });
+      toast.success("Sample document uploaded successfully");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to upload sample document";
       toast.error(message);
     } finally {
       setUploading(false);
@@ -314,15 +388,25 @@ export default function RecordsPage() {
 
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-gray-400">
-                Supported files: PDF, PNG, JPG, WEBP, HEIC. Maximum size: 8 MB.
+                Supported files: PDF, PNG, JPG, WEBP, HEIC. Maximum size: 8 MB. Demo included: upload a sample referral in one click.
               </p>
-              <button
-                type="submit"
-                disabled={uploading}
-                className="inline-flex items-center justify-center rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-teal-700 disabled:opacity-50"
-              >
-                {uploading ? "Uploading..." : "Upload document"}
-              </button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={handleUploadSampleDocument}
+                  disabled={uploading}
+                  className="inline-flex items-center justify-center rounded-xl border border-teal-200 bg-teal-50 px-4 py-2.5 text-sm font-medium text-teal-700 transition-colors hover:bg-teal-100 disabled:opacity-50 dark:border-teal-900 dark:bg-teal-950/40 dark:text-teal-300"
+                >
+                  {uploading ? "Uploading..." : "Upload sample file"}
+                </button>
+                <button
+                  type="submit"
+                  disabled={uploading}
+                  className="inline-flex items-center justify-center rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-teal-700 disabled:opacity-50"
+                >
+                  {uploading ? "Uploading..." : "Upload document"}
+                </button>
+              </div>
             </div>
           </form>
         </FadeIn>

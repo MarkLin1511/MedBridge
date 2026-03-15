@@ -59,7 +59,7 @@ class MedicalDocument(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     patient_id: str = Field(index=True)
     title: str
-    record_type: str = Field(default="general")  # lab, medication, imaging, visit, wearable, general
+    record_type: str = Field(default="general_record")  # exact document kind, mapped into timeline categories at read time
     source: str
     provider: str
     document_date: str

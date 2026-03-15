@@ -18,8 +18,33 @@ ALLOWED_DOCUMENT_TYPES = {
     "image/webp",
     "image/heic",
     "image/heif",
+    "image/tiff",
 }
-ALLOWED_RECORD_TYPES = {"lab", "medication", "imaging", "visit", "wearable", "general"}
+ALLOWED_RECORD_TYPES = {
+    "allergy_list",
+    "billing_statement",
+    "care_plan",
+    "consent_form",
+    "consult_note",
+    "discharge_summary",
+    "encounter_summary",
+    "general_record",
+    "history_and_physical",
+    "imaging_report",
+    "immunization_record",
+    "insurance_document",
+    "lab_result",
+    "medication_list",
+    "operative_note",
+    "pathology_report",
+    "prior_authorization",
+    "problem_list",
+    "progress_note",
+    "referral_note",
+    "therapy_note",
+    "vitals_sheet",
+    "wearable_report",
+}
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 
 
@@ -28,6 +53,30 @@ def _parse_sort_date(value: str) -> datetime:
         return datetime.strptime(value, "%Y-%m-%d")
     except ValueError:
         return datetime.min
+
+
+def _document_timeline_type(record_type: str) -> str:
+    if record_type in {"lab_result", "pathology_report"}:
+        return "lab"
+    if record_type == "medication_list":
+        return "medication"
+    if record_type == "imaging_report":
+        return "imaging"
+    if record_type in {"wearable_report", "vitals_sheet"}:
+        return "wearable"
+    if record_type in {
+        "care_plan",
+        "consult_note",
+        "discharge_summary",
+        "encounter_summary",
+        "history_and_physical",
+        "operative_note",
+        "progress_note",
+        "referral_note",
+        "therapy_note",
+    }:
+        return "visit"
+    return "document"
 
 
 @router.get("/records")
@@ -47,7 +96,6 @@ def list_records(
             record_stmt = record_stmt.where(false())
         else:
             record_stmt = record_stmt.where(MedicalRecord.record_type == type)
-            document_stmt = document_stmt.where(MedicalDocument.record_type == type)
 
     if search:
         search_pattern = f"%{search}%"
@@ -73,6 +121,9 @@ def list_records(
     records = session.exec(record_stmt).all()
     documents = session.exec(document_stmt).all()
 
+    if type and type != "all":
+        documents = [document for document in documents if _document_timeline_type(document.record_type) == type]
+
     combined = [
         {
             "id": record.id,
@@ -90,7 +141,7 @@ def list_records(
     ] + [
         {
             "id": document.id,
-            "type": "document",
+            "type": _document_timeline_type(document.record_type),
             "title": document.title,
             "description": f"Uploaded {document.file_name}",
             "date": document.document_date,
@@ -119,9 +170,9 @@ async def upload_document(
     session: Session = Depends(get_session),
 ):
     if file.content_type not in ALLOWED_DOCUMENT_TYPES:
-        raise HTTPException(status_code=400, detail="Unsupported file type. Upload a PDF or image.")
+        raise HTTPException(status_code=400, detail="Unsupported file type. Upload a PDF or common medical image format.")
     if record_type not in ALLOWED_RECORD_TYPES:
-        raise HTTPException(status_code=400, detail="Unsupported record type.")
+        raise HTTPException(status_code=400, detail="Unsupported medical document type.")
 
     try:
         datetime.strptime(document_date, "%Y-%m-%d")
@@ -169,7 +220,7 @@ async def upload_document(
         "date": document.document_date,
         "source": document.source,
         "provider": document.provider,
-        "type": "document",
+        "type": _document_timeline_type(document.record_type),
         "classification": document.record_type,
         "download_url": f"/api/records/documents/{document.id}/download",
     }

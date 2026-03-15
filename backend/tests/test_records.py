@@ -167,10 +167,10 @@ class TestDocumentUploads:
             "/api/records/documents",
             headers=auth_headers,
             data={
-                "source": "Epic MyChart",
+                "source": "eClinicalWorks",
                 "provider": "Dr. Avery",
                 "document_date": "2026-03-14",
-                "record_type": "visit",
+                "record_type": "progress_note",
                 "title": "After visit summary",
             },
             files={"file": ("visit-summary.pdf", b"demo-pdf", "application/pdf")},
@@ -178,8 +178,8 @@ class TestDocumentUploads:
 
         assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
         payload = response.json()
-        assert payload["type"] == "document"
-        assert payload["classification"] == "visit"
+        assert payload["type"] == "visit"
+        assert payload["classification"] == "progress_note"
 
         stored = session.get(MedicalDocument, payload["id"])
         assert stored is not None
@@ -193,13 +193,19 @@ class TestDocumentUploads:
         assert records[0]["title"] == "After visit summary"
         assert records[0]["download_url"] == f"/api/records/documents/{payload['id']}/download"
 
+        visit_filter = client.get("/api/records?type=visit", headers=auth_headers)
+        assert visit_filter.status_code == 200
+        visit_records = visit_filter.json()
+        assert len(visit_records) == 1
+        assert visit_records[0]["classification"] == "progress_note"
+
     def test_download_document_requires_matching_user(
         self, client: TestClient, auth_headers: dict, session: Session, demo_user
     ):
         document = MedicalDocument(
             patient_id=demo_user.patient_id,
             title="Imported lab",
-            record_type="lab",
+            record_type="lab_result",
             source="VA Health",
             provider="Dr. House",
             document_date="2026-03-12",

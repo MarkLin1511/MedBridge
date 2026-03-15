@@ -30,13 +30,49 @@ const filterOptions: { value: RecordType; label: string }[] = [
 ];
 
 const documentTypeOptions = [
-  { value: "general", label: "General record" },
-  { value: "lab", label: "Lab result" },
-  { value: "medication", label: "Medication" },
-  { value: "imaging", label: "Imaging" },
-  { value: "visit", label: "Visit note" },
-  { value: "wearable", label: "Wearable report" },
+  { value: "general_record", label: "General record" },
+  { value: "allergy_list", label: "Allergy list" },
+  { value: "billing_statement", label: "Billing statement" },
+  { value: "care_plan", label: "Care plan" },
+  { value: "consent_form", label: "Consent form" },
+  { value: "consult_note", label: "Consult note" },
+  { value: "discharge_summary", label: "Discharge summary" },
+  { value: "encounter_summary", label: "Encounter summary" },
+  { value: "history_and_physical", label: "History and physical" },
+  { value: "imaging_report", label: "Imaging report" },
+  { value: "immunization_record", label: "Immunization record" },
+  { value: "insurance_document", label: "Insurance document" },
+  { value: "lab_result", label: "Lab result" },
+  { value: "medication_list", label: "Medication list" },
+  { value: "operative_note", label: "Operative note" },
+  { value: "pathology_report", label: "Pathology report" },
+  { value: "prior_authorization", label: "Prior authorization" },
+  { value: "problem_list", label: "Problem list" },
+  { value: "progress_note", label: "Progress note" },
+  { value: "referral_note", label: "Referral note" },
+  { value: "therapy_note", label: "Therapy note" },
+  { value: "vitals_sheet", label: "Vitals sheet" },
+  { value: "wearable_report", label: "Wearable report" },
 ];
+
+const sourceSystemSuggestions = [
+  "Epic MyChart",
+  "Oracle Cerner",
+  "eClinicalWorks",
+  "athenahealth",
+  "MEDITECH",
+  "NextGen",
+  "Allscripts / Veradigm",
+  "Practice Fusion",
+  "VA Health",
+  "Surescripts",
+  "DrChrono",
+];
+
+function formatClassification(value: string | null) {
+  if (!value) return null;
+  return value.replace(/_/g, " ");
+}
 
 const samplePdfContent = `%PDF-1.4
 1 0 obj
@@ -105,7 +141,7 @@ export default function RecordsPage() {
     source: "",
     provider: "",
     document_date: new Date().toISOString().slice(0, 10),
-    record_type: "general",
+    record_type: "general_record",
   });
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -162,7 +198,7 @@ export default function RecordsPage() {
       title: "",
       source: "",
       provider: "",
-      record_type: "general",
+      record_type: "general_record",
     }));
     await refreshRecords();
   };
@@ -193,7 +229,7 @@ export default function RecordsPage() {
         source: "MedBridge Demo",
         provider: "Dr. Sarah Chen",
         document_date: new Date().toISOString().slice(0, 10),
-        record_type: "visit",
+        record_type: "referral_note",
       });
       toast.success("Sample document uploaded successfully");
     } catch (error) {
@@ -341,10 +377,16 @@ export default function RecordsPage() {
                   type="text"
                   value={uploadForm.source}
                   onChange={(event) => setUploadForm((current) => ({ ...current, source: event.target.value }))}
-                  placeholder="Epic MyChart"
+                  placeholder="eClinicalWorks"
+                  list="source-system-suggestions"
                   required
                   className="w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 px-4 py-3 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
+                <datalist id="source-system-suggestions">
+                  {sourceSystemSuggestions.map((option) => (
+                    <option key={option} value={option} />
+                  ))}
+                </datalist>
               </label>
 
               <label className="block">
@@ -388,7 +430,7 @@ export default function RecordsPage() {
 
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-gray-400">
-                Supported files: PDF, PNG, JPG, WEBP, HEIC. Maximum size: 8 MB. Demo included: upload a sample referral in one click.
+                Supported files: PDF, PNG, JPG, WEBP, HEIC, TIFF. Maximum size: 8 MB. Choose the source system and document kind so the later OCR and extraction pipeline can use the right parsing profile.
               </p>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <button
@@ -473,7 +515,7 @@ export default function RecordsPage() {
                         {record.classification && (
                           <>
                             <span className="text-xs text-gray-400">&middot;</span>
-                            <span className="text-xs text-gray-500 capitalize">{record.classification}</span>
+                            <span className="text-xs text-gray-500 capitalize">{formatClassification(record.classification)}</span>
                           </>
                         )}
                       </div>

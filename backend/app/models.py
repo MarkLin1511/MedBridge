@@ -60,11 +60,16 @@ class MedicalDocument(SQLModel, table=True):
     patient_id: str = Field(index=True)
     title: str
     record_type: str = Field(default="general_record")  # exact document kind, mapped into timeline categories at read time
+    source_system: str = Field(default="unknown")
     source: str
+    facility: Optional[str] = None
     provider: str
     document_date: str
     file_name: str
     content_type: str
+    extraction_profile: str = Field(default="generic_general_record")
+    ocr_status: str = Field(default="pending")
+    extraction_status: str = Field(default="pending")
     encrypted_blob: str
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 

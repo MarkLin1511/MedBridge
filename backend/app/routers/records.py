@@ -46,6 +46,19 @@ ALLOWED_RECORD_TYPES = {
     "wearable_report",
 }
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+SOURCE_SYSTEM_PROFILES = {
+    "allscripts / veradigm": "allscripts",
+    "athenahealth": "athenahealth",
+    "drchrono": "drchrono",
+    "eclinicalworks": "eclinicalworks",
+    "epic mychart": "epic_mychart",
+    "meditech": "meditech",
+    "nextgen": "nextgen",
+    "oracle cerner": "oracle_cerner",
+    "practice fusion": "practice_fusion",
+    "surescripts": "surescripts",
+    "va health": "va_health",
+}
 
 
 def _parse_sort_date(value: str) -> datetime:
@@ -77,6 +90,15 @@ def _document_timeline_type(record_type: str) -> str:
     }:
         return "visit"
     return "document"
+
+
+def _normalize_source_system(value: str) -> str:
+    normalized = " ".join(value.strip().lower().split())
+    return SOURCE_SYSTEM_PROFILES.get(normalized, normalized.replace(" ", "_") or "unknown")
+
+
+def _build_extraction_profile(source_system: str, record_type: str) -> str:
+    return f"{_normalize_source_system(source_system)}__{record_type}"
 
 
 @router.get("/records")
@@ -111,10 +133,13 @@ def list_records(
         document_stmt = document_stmt.where(
             or_(
                 MedicalDocument.title.ilike(search_pattern),
+                MedicalDocument.source_system.ilike(search_pattern),
                 MedicalDocument.source.ilike(search_pattern),
+                MedicalDocument.facility.ilike(search_pattern),
                 MedicalDocument.provider.ilike(search_pattern),
                 MedicalDocument.file_name.ilike(search_pattern),
                 MedicalDocument.record_type.ilike(search_pattern),
+                MedicalDocument.extraction_profile.ilike(search_pattern),
             )
         )
 
@@ -145,10 +170,15 @@ def list_records(
             "title": document.title,
             "description": f"Uploaded {document.file_name}",
             "date": document.document_date,
+            "source_system": document.source_system,
             "source": document.source,
+            "facility": document.facility,
             "provider": document.provider,
             "flags": ["Uploaded file"],
             "classification": document.record_type,
+            "ocr_status": document.ocr_status,
+            "extraction_status": document.extraction_status,
+            "extraction_profile": document.extraction_profile,
             "download_url": f"/api/records/documents/{document.id}/download",
         }
         for document in documents
@@ -161,7 +191,9 @@ def list_records(
 @router.post("/records/documents")
 async def upload_document(
     file: UploadFile = File(...),
+    source_system: str = Form(...),
     source: str = Form(...),
+    facility: Optional[str] = Form(default=None),
     provider: str = Form(...),
     document_date: str = Form(...),
     record_type: str = Form(...),
@@ -180,10 +212,12 @@ async def upload_document(
         raise HTTPException(status_code=400, detail="Document date must be YYYY-MM-DD.") from exc
 
     clean_title = title.strip() or (file.filename or "Uploaded document")
+    clean_source_system = source_system.strip()
     clean_source = source.strip()
+    clean_facility = facility.strip() if facility else None
     clean_provider = provider.strip()
-    if not clean_source or not clean_provider:
-        raise HTTPException(status_code=400, detail="Source and provider are required.")
+    if not clean_source_system or not clean_source or not clean_provider:
+        raise HTTPException(status_code=400, detail="Source system, source label, and provider are required.")
 
     payload = await file.read()
     if not payload:
@@ -195,11 +229,14 @@ async def upload_document(
         patient_id=user.patient_id,
         title=clean_title,
         record_type=record_type,
+        source_system=clean_source_system,
         source=clean_source,
+        facility=clean_facility,
         provider=clean_provider,
         document_date=document_date,
         file_name=file.filename or "document",
         content_type=file.content_type or "application/octet-stream",
+        extraction_profile=_build_extraction_profile(clean_source_system, record_type),
         encrypted_blob=encrypt_bytes(payload),
     )
     session.add(document)
@@ -218,10 +255,15 @@ async def upload_document(
         "id": document.id,
         "title": document.title,
         "date": document.document_date,
+        "source_system": document.source_system,
         "source": document.source,
+        "facility": document.facility,
         "provider": document.provider,
         "type": _document_timeline_type(document.record_type),
         "classification": document.record_type,
+        "ocr_status": document.ocr_status,
+        "extraction_status": document.extraction_status,
+        "extraction_profile": document.extraction_profile,
         "download_url": f"/api/records/documents/{document.id}/download",
     }
 

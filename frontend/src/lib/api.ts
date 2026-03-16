@@ -83,16 +83,23 @@ export interface RecordItem {
   title: string;
   description: string;
   date: string;
+  source_system?: string | null;
   source: string;
+  facility?: string | null;
   provider: string;
   flags: string[];
   classification: string | null;
+  ocr_status?: string | null;
+  extraction_status?: string | null;
+  extraction_profile?: string | null;
   download_url: string | null;
 }
 
 export interface DocumentUploadData {
   file: File;
+  source_system: string;
   source: string;
+  facility?: string;
   provider: string;
   document_date: string;
   record_type: string;
@@ -288,7 +295,9 @@ class ApiClient {
   async uploadDocument(data: DocumentUploadData): Promise<RecordItem> {
     const formData = new FormData();
     formData.append("file", data.file);
+    formData.append("source_system", data.source_system);
     formData.append("source", data.source);
+    if (data.facility) formData.append("facility", data.facility);
     formData.append("provider", data.provider);
     formData.append("document_date", data.document_date);
     formData.append("record_type", data.record_type);

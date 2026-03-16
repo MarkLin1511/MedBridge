@@ -138,7 +138,9 @@ export default function RecordsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadForm, setUploadForm] = useState({
     title: "",
+    source_system: "eClinicalWorks",
     source: "",
+    facility: "",
     provider: "",
     document_date: new Date().toISOString().slice(0, 10),
     record_type: "general_record",
@@ -196,7 +198,9 @@ export default function RecordsPage() {
     setUploadForm((current) => ({
       ...current,
       title: "",
+      source_system: "eClinicalWorks",
       source: "",
+      facility: "",
       provider: "",
       record_type: "general_record",
     }));
@@ -226,7 +230,9 @@ export default function RecordsPage() {
     try {
       await uploadDocumentFile(buildSampleDocumentFile(), {
         title: "Sample referral summary",
+        source_system: "eClinicalWorks",
         source: "MedBridge Demo",
+        facility: "Bay Area Family Practice",
         provider: "Dr. Sarah Chen",
         document_date: new Date().toISOString().slice(0, 10),
         record_type: "referral_note",
@@ -375,8 +381,8 @@ export default function RecordsPage() {
                 <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Source system</span>
                 <input
                   type="text"
-                  value={uploadForm.source}
-                  onChange={(event) => setUploadForm((current) => ({ ...current, source: event.target.value }))}
+                  value={uploadForm.source_system}
+                  onChange={(event) => setUploadForm((current) => ({ ...current, source_system: event.target.value }))}
                   placeholder="eClinicalWorks"
                   list="source-system-suggestions"
                   required
@@ -387,6 +393,29 @@ export default function RecordsPage() {
                     <option key={option} value={option} />
                   ))}
                 </datalist>
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Portal or source label</span>
+                <input
+                  type="text"
+                  value={uploadForm.source}
+                  onChange={(event) => setUploadForm((current) => ({ ...current, source: event.target.value }))}
+                  placeholder="Downtown Cardiology eCW portal"
+                  required
+                  className="w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 px-4 py-3 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Facility or practice</span>
+                <input
+                  type="text"
+                  value={uploadForm.facility}
+                  onChange={(event) => setUploadForm((current) => ({ ...current, facility: event.target.value }))}
+                  placeholder="Bay Area Family Practice"
+                  className="w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 px-4 py-3 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
               </label>
 
               <label className="block">
@@ -430,7 +459,7 @@ export default function RecordsPage() {
 
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-gray-400">
-                Supported files: PDF, PNG, JPG, WEBP, HEIC, TIFF. Maximum size: 8 MB. Choose the source system and document kind so the later OCR and extraction pipeline can use the right parsing profile.
+                Supported files: PDF, PNG, JPG, WEBP, HEIC, TIFF. Maximum size: 8 MB. MedBridge now stores the EHR/vendor, source label, facility, document kind, and extraction profile so later OCR can branch for layouts like eClinicalWorks, Epic, Cerner, athenahealth, and generic scans.
               </p>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <button
@@ -512,6 +541,12 @@ export default function RecordsPage() {
                         <span className="text-xs text-gray-400">{record.date}</span>
                         <span className="text-xs text-gray-400">&middot;</span>
                         <span className="text-xs text-gray-500">{record.source}</span>
+                        {record.source_system && (
+                          <>
+                            <span className="text-xs text-gray-400">&middot;</span>
+                            <span className="text-xs text-gray-500">{record.source_system}</span>
+                          </>
+                        )}
                         {record.classification && (
                           <>
                             <span className="text-xs text-gray-400">&middot;</span>
@@ -523,11 +558,17 @@ export default function RecordsPage() {
                       <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{record.description}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <span className="text-xs text-gray-500">{record.provider}</span>
+                        {record.facility && <span className="text-xs text-gray-500">{record.facility}</span>}
                         {record.flags.map((flag) => (
                           <span key={flag} className="px-2 py-0.5 rounded text-xs font-medium bg-red-50 dark:bg-red-900/40 text-red-700 dark:text-red-300">
                             {flag}
                           </span>
                         ))}
+                        {record.extraction_profile && (
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-sky-50 dark:bg-sky-900/40 text-sky-700 dark:text-sky-300">
+                            Profile: {record.extraction_profile}
+                          </span>
+                        )}
                         {record.download_url && (
                           <button
                             type="button"

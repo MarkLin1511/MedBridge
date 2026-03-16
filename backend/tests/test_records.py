@@ -167,8 +167,10 @@ class TestDocumentUploads:
             "/api/records/documents",
             headers=auth_headers,
             data={
+                "source_system": "eClinicalWorks",
                 "source": "eClinicalWorks",
                 "provider": "Dr. Avery",
+                "facility": "Downtown Cardiology",
                 "document_date": "2026-03-14",
                 "record_type": "progress_note",
                 "title": "After visit summary",
@@ -180,10 +182,15 @@ class TestDocumentUploads:
         payload = response.json()
         assert payload["type"] == "visit"
         assert payload["classification"] == "progress_note"
+        assert payload["source_system"] == "eClinicalWorks"
+        assert payload["facility"] == "Downtown Cardiology"
+        assert payload["extraction_profile"] == "eclinicalworks__progress_note"
 
         stored = session.get(MedicalDocument, payload["id"])
         assert stored is not None
         assert stored.patient_id == demo_user.patient_id
+        assert stored.source_system == "eClinicalWorks"
+        assert stored.facility == "Downtown Cardiology"
         assert decrypt_bytes(stored.encrypted_blob) == b"demo-pdf"
 
         list_response = client.get("/api/records?type=document", headers=auth_headers)
@@ -198,6 +205,7 @@ class TestDocumentUploads:
         visit_records = visit_filter.json()
         assert len(visit_records) == 1
         assert visit_records[0]["classification"] == "progress_note"
+        assert visit_records[0]["extraction_profile"] == "eclinicalworks__progress_note"
 
     def test_download_document_requires_matching_user(
         self, client: TestClient, auth_headers: dict, session: Session, demo_user

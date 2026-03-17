@@ -614,6 +614,21 @@ export default function RecordsPage() {
             {capabilities?.beta_note && (
               <p className="mt-4 text-xs text-gray-400">{capabilities.beta_note}</p>
             )}
+            {capabilities?.model_summary && (
+              <div className="mt-4 rounded-xl border border-violet-100 bg-violet-50/80 p-4 dark:border-violet-900 dark:bg-violet-950/30">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-700 dark:text-violet-300">
+                  Synthetic model bootstrap
+                </div>
+                <div className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
+                  Trained on {capabilities.model_summary.generated_documents} generated PDFs
+                </div>
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                  Source-system accuracy: {Math.round(capabilities.model_summary.source_system_accuracy * 100)}% · Record-type accuracy:{" "}
+                  {Math.round(capabilities.model_summary.record_type_accuracy * 100)}%
+                </p>
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{capabilities.model_summary.note}</p>
+              </div>
+            )}
           </div>
         </FadeIn>
 

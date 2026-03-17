@@ -127,6 +127,14 @@ export interface DocumentIntelligenceData {
   source_systems: DocumentIntelligenceSourceSystem[];
   document_types: DocumentIntelligenceDocumentType[];
   beta_note: string;
+  model_summary?: {
+    generated_documents: number;
+    train_documents: number;
+    validation_documents: number;
+    source_system_accuracy: number;
+    record_type_accuracy: number;
+    note: string;
+  } | null;
 }
 
 export interface ProviderData {

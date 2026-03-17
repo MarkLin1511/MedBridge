@@ -261,3 +261,30 @@ class TestDocumentUploads:
         document_types = {item["value"]: item for item in payload["document_types"]}
         assert "progress_note" in document_types
         assert "assessment" in document_types["progress_note"]["default_targets"]
+        assert payload["model_summary"]["generated_documents"] == 1000
+        assert payload["model_summary"]["record_type_accuracy"] == 1.0
+
+    def test_document_intelligence_classifier_returns_predictions(
+        self, client: TestClient, auth_headers: dict
+    ):
+        response = client.post(
+            "/api/records/document-intelligence/classify",
+            headers=auth_headers,
+            json={
+                "text": "\n".join(
+                    [
+                        "eClinicalWorks",
+                        "Progress note",
+                        "Patient: Marcus Johnson",
+                        "Chief complaint: follow up for hypertension",
+                        "Assessment: patient stable with ongoing monitoring needs.",
+                        "Plan: continue medications and follow up in 3 months.",
+                        "Vitals: BP 128/82, Pulse 72, Weight 182 lb.",
+                    ]
+                )
+            },
+        )
+        assert response.status_code == 200
+        payload = response.json()
+        assert payload["source_system"]["label"] == "eclinicalworks"
+        assert payload["record_type"]["label"] == "progress_note"

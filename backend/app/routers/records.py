@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query, UploadFile, File, Form, HTTPExcep
 from fastapi.responses import Response
 from sqlmodel import Session, select, or_
 from typing import Optional
+from pydantic import BaseModel
 from app.db import get_session
 from app.models import User, MedicalRecord, MedicalDocument, AuditLog
 from app.auth import get_current_user
@@ -13,9 +14,9 @@ from app.document_intelligence import (
     capability_payload,
     extraction_targets_for,
     iter_supported_record_types,
-    normalize_source_system,
     profile_for_source_system,
 )
+from app.document_profile_model import classify_text, model_summary
 
 router = APIRouter(prefix="/api", tags=["records"])
 
@@ -30,6 +31,10 @@ ALLOWED_DOCUMENT_TYPES = {
 }
 ALLOWED_RECORD_TYPES = set(iter_supported_record_types())
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
+
+
+class DocumentClassificationRequest(BaseModel):
+    text: str
 
 
 def _parse_sort_date(value: str) -> datetime:
@@ -61,6 +66,7 @@ def _document_timeline_type(record_type: str) -> str:
     }:
         return "visit"
     return "document"
+
 
 @router.get("/records")
 def list_records(
@@ -237,7 +243,24 @@ async def upload_document(
 def get_document_intelligence_capabilities(
     user: User = Depends(get_current_user),
 ):
-    return capability_payload()
+    payload = capability_payload()
+    payload["model_summary"] = model_summary()
+    return payload
+
+
+@router.post("/records/document-intelligence/classify")
+def classify_document_text(
+    request: DocumentClassificationRequest,
+    user: User = Depends(get_current_user),
+):
+    text = request.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Document text is required for classification.")
+
+    result = classify_text(text)
+    if not result:
+        raise HTTPException(status_code=503, detail="Document profile model is not available yet.")
+    return result
 
 
 @router.get("/records/documents/{document_id}/download")

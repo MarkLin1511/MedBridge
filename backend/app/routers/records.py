@@ -16,6 +16,7 @@ from app.document_intelligence import (
     iter_supported_record_types,
     profile_for_source_system,
 )
+from app.document_extraction import extract_document, persist_extraction
 from app.document_profile_model import classify_text, model_summary
 
 router = APIRouter(prefix="/api", tags=["records"])
@@ -79,6 +80,7 @@ def list_records(
 ):
     record_stmt = select(MedicalRecord).where(MedicalRecord.patient_id == user.patient_id)
     document_stmt = select(MedicalDocument).where(MedicalDocument.patient_id == user.patient_id)
+    all_record_stmt = select(MedicalRecord).where(MedicalRecord.patient_id == user.patient_id)
 
     if type and type != "all":
         if type == "document":
@@ -112,6 +114,16 @@ def list_records(
 
     records = session.exec(record_stmt).all()
     documents = session.exec(document_stmt).all()
+    all_patient_records = session.exec(all_record_stmt).all()
+    derived_counts: dict[int, int] = {}
+    for record in all_patient_records:
+        for flag in record.get_flags():
+            if isinstance(flag, str) and flag.startswith("document:"):
+                try:
+                    document_id = int(flag.split(":", 1)[1])
+                except ValueError:
+                    continue
+                derived_counts[document_id] = derived_counts.get(document_id, 0) + 1
 
     if type and type != "all":
         documents = [document for document in documents if _document_timeline_type(document.record_type) == type]
@@ -141,13 +153,17 @@ def list_records(
             "source": document.source,
             "facility": document.facility,
             "provider": document.provider,
-            "flags": ["Uploaded file"],
+            "flags": [
+                "Uploaded file",
+                *( [f"Extracted {derived_counts.get(document.id, 0)} items"] if derived_counts.get(document.id, 0) else []),
+            ],
             "classification": document.record_type,
             "ocr_status": document.ocr_status,
             "extraction_status": document.extraction_status,
             "extraction_profile": document.extraction_profile,
             "source_family": profile_for_source_system(document.source_system).family,
             "extraction_targets": extraction_targets_for(document.record_type, document.source_system),
+            "derived_records_count": derived_counts.get(document.id, 0),
             "download_url": f"/api/records/documents/{document.id}/download",
         }
         for document in documents
@@ -167,6 +183,7 @@ async def upload_document(
     document_date: str = Form(...),
     record_type: str = Form(...),
     title: str = Form(...),
+    extracted_text: Optional[str] = Form(default=None),
     user: User = Depends(get_current_user),
     session: Session = Depends(get_session),
 ):
@@ -210,6 +227,15 @@ async def upload_document(
     )
     session.add(document)
     session.flush()
+    normalized_supplied_text = (extracted_text or "").strip() or None
+    extracted_content, ocr_status, extraction_status, text_length = extract_document(document, payload, normalized_supplied_text)
+    document.ocr_status = ocr_status
+    document.extraction_status = extraction_status
+    derived_records_count = 0
+    if extracted_content and extraction_status == "complete":
+        derived_records_count = persist_extraction(session, user, document, extracted_content)
+        if derived_records_count == 0:
+            document.extraction_status = "needs_review"
     session.add(AuditLog(
         patient_id=user.patient_id,
         action=f"Uploaded {document.file_name}",
@@ -235,6 +261,8 @@ async def upload_document(
         "extraction_profile": document.extraction_profile,
         "source_family": profile_for_source_system(document.source_system).family,
         "extraction_targets": extraction_targets_for(document.record_type, document.source_system),
+        "derived_records_count": derived_records_count,
+        "extracted_text_length": text_length,
         "download_url": f"/api/records/documents/{document.id}/download",
     }
 

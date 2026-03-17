@@ -94,6 +94,8 @@ export interface RecordItem {
   extraction_status?: string | null;
   extraction_profile?: string | null;
   extraction_targets?: string[];
+  derived_records_count?: number;
+  extracted_text_length?: number;
   download_url: string | null;
 }
 
@@ -106,6 +108,7 @@ export interface DocumentUploadData {
   document_date: string;
   record_type: string;
   title: string;
+  extracted_text?: string;
 }
 
 export interface DocumentIntelligenceSourceSystem {
@@ -333,6 +336,7 @@ class ApiClient {
     formData.append("document_date", data.document_date);
     formData.append("record_type", data.record_type);
     formData.append("title", data.title);
+    if (data.extracted_text) formData.append("extracted_text", data.extracted_text);
 
     return this.request("/api/records/documents", {
       method: "POST",

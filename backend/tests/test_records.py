@@ -1,9 +1,10 @@
 """Tests for medical records endpoints: list, filter, search, pagination."""
 import json
+from sqlmodel import select
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from app.models import MedicalRecord, MedicalDocument
+from app.models import MedicalRecord, MedicalDocument, LabObservation
 from app.encryption import decrypt_bytes, encrypt_bytes
 
 
@@ -210,6 +211,7 @@ class TestDocumentUploads:
         assert visit_records[0]["classification"] == "progress_note"
         assert visit_records[0]["extraction_profile"] == "eclinicalworks__progress_note"
         assert "vitals" in visit_records[0]["extraction_targets"]
+        assert visit_records[0]["derived_records_count"] >= 1
 
     def test_download_document_requires_matching_user(
         self, client: TestClient, auth_headers: dict, session: Session, demo_user
@@ -288,3 +290,46 @@ class TestDocumentUploads:
         payload = response.json()
         assert payload["source_system"]["label"] == "eclinicalworks"
         assert payload["record_type"]["label"] == "progress_note"
+
+    def test_upload_with_browser_ocr_text_creates_derived_records_and_labs(
+        self, client: TestClient, auth_headers: dict, session: Session, demo_user
+    ):
+        response = client.post(
+            "/api/records/documents",
+            headers=auth_headers,
+            data={
+                "source_system": "Epic (MyChart)",
+                "source": "Epic portal",
+                "provider": "Dr. Sarah Chen",
+                "facility": "Bayview Medical Center",
+                "document_date": "2026-03-16",
+                "record_type": "lab_result",
+                "title": "A1c and fasting glucose screenshot",
+                "extracted_text": "\n".join(
+                    [
+                        "Epic (MyChart)",
+                        "Lab result",
+                        "Patient: Marcus Johnson",
+                        "Hemoglobin A1c: 6.1% High",
+                        "Glucose: 112 mg/dL High",
+                    ]
+                ),
+            },
+            files={"file": ("labs.png", b"fake-image", "image/png")},
+        )
+
+        assert response.status_code == 200, response.text
+        payload = response.json()
+        assert payload["ocr_status"] == "completed_browser_ocr"
+        assert payload["extraction_status"] == "complete"
+        assert payload["derived_records_count"] >= 2
+
+        extracted_records = session.exec(
+            select(MedicalRecord).where(MedicalRecord.patient_id == demo_user.patient_id, MedicalRecord.record_type == "lab")
+        ).all()
+        assert len(extracted_records) >= 2
+        assert any("document:" in flag for record in extracted_records for flag in record.get_flags())
+
+        labs = session.exec(select(LabObservation).where(LabObservation.patient_id == demo_user.patient_id)).all()
+        assert len(labs) >= 2
+        assert any(lab.test_name == "Hemoglobin A1C" or lab.test_name == "Hemoglobin A1C".title() for lab in labs)

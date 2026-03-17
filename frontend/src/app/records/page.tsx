@@ -6,6 +6,7 @@ import Navbar from "@/components/Navbar";
 import { FadeIn, FadeInStagger, FadeInStaggerItem } from "@/components/AnimatedSection";
 import { useAuth } from "@/lib/auth";
 import { api, DocumentIntelligenceData, RecordItem } from "@/lib/api";
+import { extractDocumentTextInBrowser } from "@/lib/documentOcr";
 import { toast } from "sonner";
 
 type RecordType = "all" | "lab" | "medication" | "imaging" | "visit" | "wearable" | "document";
@@ -150,6 +151,7 @@ export default function RecordsPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [showExportConfirm, setShowExportConfirm] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadPhase, setUploadPhase] = useState("Upload document");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [capabilities, setCapabilities] = useState<DocumentIntelligenceData | null>(null);
   const [uploadForm, setUploadForm] = useState({
@@ -212,10 +214,17 @@ export default function RecordsPage() {
   };
 
   const uploadDocumentFile = async (file: File, formData = uploadForm) => {
+    let extractedText = "";
+    const browserOcrResult = await extractDocumentTextInBrowser(file);
+    if (browserOcrResult?.text) {
+      extractedText = browserOcrResult.text;
+    }
+
     await api.uploadDocument({
       file,
       ...formData,
       title: formData.title.trim() || file.name,
+      extracted_text: extractedText,
     });
     setSelectedFile(null);
     setUploadForm((current) => ({
@@ -227,6 +236,7 @@ export default function RecordsPage() {
       provider: "",
       record_type: "general_record",
     }));
+    setUploadPhase("Refreshing records");
     await refreshRecords();
   };
 
@@ -237,6 +247,7 @@ export default function RecordsPage() {
       return;
     }
     setUploading(true);
+    setUploadPhase(selectedFile.type.startsWith("image/") ? "Running OCR in browser..." : "Uploading document...");
     try {
       await uploadDocumentFile(selectedFile);
       toast.success("Document uploaded to your record timeline");
@@ -245,11 +256,13 @@ export default function RecordsPage() {
       toast.error(message);
     } finally {
       setUploading(false);
+      setUploadPhase("Upload document");
     }
   };
 
   const handleUploadSampleDocument = async () => {
     setUploading(true);
+    setUploadPhase("Uploading sample document...");
     try {
       await uploadDocumentFile(buildSampleDocumentFile(), {
         title: "Sample referral summary",
@@ -266,6 +279,7 @@ export default function RecordsPage() {
       toast.error(message);
     } finally {
       setUploading(false);
+      setUploadPhase("Upload document");
     }
   };
 
@@ -560,6 +574,7 @@ export default function RecordsPage() {
                 Supported files: PDF, PNG, JPG, WEBP, HEIC, TIFF. Maximum size: 8 MB. MedBridge now profiles uploads for
                 Epic, Oracle/Cerner, MEDITECH, athenahealth, eClinicalWorks, NextGen, Tebra, Practice Fusion, Greenway,
                 AdvancedMD, Allscripts/Veradigm, DrChrono, CureMD, Praxis, Nextech, SimplePractice/TherapyNotes, VA, and generic scanned records.
+                Image uploads are OCR&apos;d in the browser before sending to MedBridge; PDFs with text layers are parsed on the backend.
               </p>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <button
@@ -575,7 +590,7 @@ export default function RecordsPage() {
                   disabled={uploading}
                   className="inline-flex items-center justify-center rounded-xl bg-teal-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-teal-700 disabled:opacity-50"
                 >
-                  {uploading ? "Uploading..." : "Upload document"}
+                  {uploading ? uploadPhase : "Upload document"}
                 </button>
               </div>
             </div>
@@ -719,9 +734,24 @@ export default function RecordsPage() {
                             Profile: {record.extraction_profile}
                           </span>
                         )}
+                        {record.ocr_status && (
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-cyan-50 dark:bg-cyan-900/40 text-cyan-700 dark:text-cyan-300">
+                            OCR: {formatClassification(record.ocr_status)}
+                          </span>
+                        )}
+                        {record.extraction_status && (
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-50 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+                            Extraction: {formatClassification(record.extraction_status)}
+                          </span>
+                        )}
                         {record.source_family && (
                           <span className="px-2 py-0.5 rounded text-xs font-medium bg-violet-50 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300">
                             Family: {formatFamilyLabel(record.source_family)}
+                          </span>
+                        )}
+                        {typeof record.derived_records_count === "number" && record.derived_records_count > 0 && (
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">
+                            {record.derived_records_count} extracted items
                           </span>
                         )}
                         {record.extraction_targets?.map((target) => (

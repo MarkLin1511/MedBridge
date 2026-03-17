@@ -33,7 +33,21 @@ cd backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+python run.py
+```
+
+Alternative entrypoints:
+
+```bash
+python -m backend
+python -m app.main
+```
+
+Optional flags:
+
+```bash
+python run.py --host 0.0.0.0 --port 8000 --reload
+python run.py --no-reload
 ```
 
 ### Docker (full stack)

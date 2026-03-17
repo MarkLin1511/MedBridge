@@ -1,4 +1,5 @@
 import os
+import sys
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -64,3 +65,27 @@ app.include_router(smart_fhir.router)
 @app.get("/api/health")
 def health():
     return {"status": "ok", "version": "0.2.0"}
+
+
+def run() -> None:
+    try:
+        import uvicorn
+    except ModuleNotFoundError as exc:
+        raise SystemExit(
+            "uvicorn is not installed. Run `pip install -r backend/requirements.txt` first."
+        ) from exc
+
+    uvicorn.run(
+        "app.main:app",
+        host=os.environ.get("BACKEND_HOST", "0.0.0.0"),
+        port=int(os.environ.get("BACKEND_PORT", "8000")),
+        reload=os.environ.get("BACKEND_RELOAD", "1").lower() not in {"0", "false", "no"},
+    )
+
+
+if __name__ == "__main__":
+    if __package__ in {None, ""}:
+        backend_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        if backend_root not in sys.path:
+            sys.path.insert(0, backend_root)
+    run()

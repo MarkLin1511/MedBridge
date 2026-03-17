@@ -8,6 +8,14 @@ from app.db import get_session
 from app.models import User, MedicalRecord, MedicalDocument, AuditLog
 from app.auth import get_current_user
 from app.encryption import encrypt_bytes, decrypt_bytes
+from app.document_intelligence import (
+    build_extraction_profile,
+    capability_payload,
+    extraction_targets_for,
+    iter_supported_record_types,
+    normalize_source_system,
+    profile_for_source_system,
+)
 
 router = APIRouter(prefix="/api", tags=["records"])
 
@@ -20,45 +28,8 @@ ALLOWED_DOCUMENT_TYPES = {
     "image/heif",
     "image/tiff",
 }
-ALLOWED_RECORD_TYPES = {
-    "allergy_list",
-    "billing_statement",
-    "care_plan",
-    "consent_form",
-    "consult_note",
-    "discharge_summary",
-    "encounter_summary",
-    "general_record",
-    "history_and_physical",
-    "imaging_report",
-    "immunization_record",
-    "insurance_document",
-    "lab_result",
-    "medication_list",
-    "operative_note",
-    "pathology_report",
-    "prior_authorization",
-    "problem_list",
-    "progress_note",
-    "referral_note",
-    "therapy_note",
-    "vitals_sheet",
-    "wearable_report",
-}
+ALLOWED_RECORD_TYPES = set(iter_supported_record_types())
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
-SOURCE_SYSTEM_PROFILES = {
-    "allscripts / veradigm": "allscripts",
-    "athenahealth": "athenahealth",
-    "drchrono": "drchrono",
-    "eclinicalworks": "eclinicalworks",
-    "epic mychart": "epic_mychart",
-    "meditech": "meditech",
-    "nextgen": "nextgen",
-    "oracle cerner": "oracle_cerner",
-    "practice fusion": "practice_fusion",
-    "surescripts": "surescripts",
-    "va health": "va_health",
-}
 
 
 def _parse_sort_date(value: str) -> datetime:
@@ -90,16 +61,6 @@ def _document_timeline_type(record_type: str) -> str:
     }:
         return "visit"
     return "document"
-
-
-def _normalize_source_system(value: str) -> str:
-    normalized = " ".join(value.strip().lower().split())
-    return SOURCE_SYSTEM_PROFILES.get(normalized, normalized.replace(" ", "_") or "unknown")
-
-
-def _build_extraction_profile(source_system: str, record_type: str) -> str:
-    return f"{_normalize_source_system(source_system)}__{record_type}"
-
 
 @router.get("/records")
 def list_records(
@@ -179,6 +140,8 @@ def list_records(
             "ocr_status": document.ocr_status,
             "extraction_status": document.extraction_status,
             "extraction_profile": document.extraction_profile,
+            "source_family": profile_for_source_system(document.source_system).family,
+            "extraction_targets": extraction_targets_for(document.record_type, document.source_system),
             "download_url": f"/api/records/documents/{document.id}/download",
         }
         for document in documents
@@ -236,7 +199,7 @@ async def upload_document(
         document_date=document_date,
         file_name=file.filename or "document",
         content_type=file.content_type or "application/octet-stream",
-        extraction_profile=_build_extraction_profile(clean_source_system, record_type),
+        extraction_profile=build_extraction_profile(clean_source_system, record_type),
         encrypted_blob=encrypt_bytes(payload),
     )
     session.add(document)
@@ -264,8 +227,17 @@ async def upload_document(
         "ocr_status": document.ocr_status,
         "extraction_status": document.extraction_status,
         "extraction_profile": document.extraction_profile,
+        "source_family": profile_for_source_system(document.source_system).family,
+        "extraction_targets": extraction_targets_for(document.record_type, document.source_system),
         "download_url": f"/api/records/documents/{document.id}/download",
     }
+
+
+@router.get("/records/document-intelligence")
+def get_document_intelligence_capabilities(
+    user: User = Depends(get_current_user),
+):
+    return capability_payload()
 
 
 @router.get("/records/documents/{document_id}/download")

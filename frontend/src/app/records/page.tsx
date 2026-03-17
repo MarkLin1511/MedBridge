@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { FadeIn, FadeInStagger, FadeInStaggerItem } from "@/components/AnimatedSection";
 import { useAuth } from "@/lib/auth";
-import { api, RecordItem } from "@/lib/api";
+import { api, DocumentIntelligenceData, RecordItem } from "@/lib/api";
 import { toast } from "sonner";
 
 type RecordType = "all" | "lab" | "medication" | "imaging" | "visit" | "wearable" | "document";
@@ -29,7 +29,7 @@ const filterOptions: { value: RecordType; label: string }[] = [
   { value: "document", label: "Documents" },
 ];
 
-const documentTypeOptions = [
+const fallbackDocumentTypeOptions = [
   { value: "general_record", label: "General record" },
   { value: "allergy_list", label: "Allergy list" },
   { value: "billing_statement", label: "Billing statement" },
@@ -55,21 +55,36 @@ const documentTypeOptions = [
   { value: "wearable_report", label: "Wearable report" },
 ];
 
-const sourceSystemSuggestions = [
-  "Epic MyChart",
-  "Oracle Cerner",
-  "eClinicalWorks",
-  "athenahealth",
+const fallbackSourceSystemSuggestions = [
+  "Epic (MyChart)",
+  "Oracle Health (Cerner)",
   "MEDITECH",
-  "NextGen",
-  "Allscripts / Veradigm",
+  "athenahealth (athenaOne)",
+  "eClinicalWorks",
+  "NextGen Healthcare",
+  "Tebra (Kareo + PatientPop)",
   "Practice Fusion",
-  "VA Health",
-  "Surescripts",
+  "Greenway Health / Intergy",
+  "AdvancedMD",
+  "Allscripts / Veradigm",
   "DrChrono",
+  "CureMD",
+  "Praxis EMR",
+  "Nextech",
+  "SimplePractice / TherapyNotes",
+  "VA Health",
 ];
 
 function formatClassification(value: string | null) {
+  if (!value) return null;
+  return value.replace(/_/g, " ");
+}
+
+function formatTargetLabel(value: string) {
+  return value.replace(/_/g, " ");
+}
+
+function formatFamilyLabel(value: string | null | undefined) {
   if (!value) return null;
   return value.replace(/_/g, " ");
 }
@@ -136,6 +151,7 @@ export default function RecordsPage() {
   const [showExportConfirm, setShowExportConfirm] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [capabilities, setCapabilities] = useState<DocumentIntelligenceData | null>(null);
   const [uploadForm, setUploadForm] = useState({
     title: "",
     source_system: "eClinicalWorks",
@@ -175,6 +191,13 @@ export default function RecordsPage() {
       .catch(() => toast.error("Failed to load records"))
       .finally(() => setLoading(false));
   }, [user, authLoading, router, filter, debouncedSearch]);
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+    api.documentIntelligence().then(setCapabilities).catch(() => {
+      toast.error("Failed to load document intelligence profiles");
+    });
+  }, [user, authLoading]);
 
   const refreshRecords = async () => {
     setLoading(true);
@@ -281,6 +304,28 @@ export default function RecordsPage() {
     }
   };
 
+  const sourceSystems = capabilities?.source_systems ?? fallbackSourceSystemSuggestions.map((display_name) => ({
+    display_name,
+    slug: display_name.toLowerCase().replace(/[^a-z0-9]+/g, "_"),
+    family: "supported",
+    care_setting: "medical records",
+    focus: [],
+    likely_record_types: [],
+  }));
+  const documentTypeOptions = capabilities?.document_types ?? fallbackDocumentTypeOptions.map((option) => ({
+    ...option,
+    default_targets: [],
+  }));
+  const selectedSourceSystem = sourceSystems.find(
+    (system) => system.display_name === uploadForm.source_system || system.slug === uploadForm.source_system
+  );
+  const selectedDocumentType = documentTypeOptions.find((option) => option.value === uploadForm.record_type);
+  const groupedSourceSystems = sourceSystems.reduce<Record<string, typeof sourceSystems>>((groups, system) => {
+    const bucket = system.family || "supported";
+    groups[bucket] = groups[bucket] ? [...groups[bucket], system] : [system];
+    return groups;
+  }, {});
+
   if (authLoading || (loading && records.length === 0)) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -351,7 +396,8 @@ export default function RecordsPage() {
             <div className="flex flex-col gap-1">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Upload medical documents</h2>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Add PDFs, screenshots, or scanned records and tag them with the right source metadata.
+                Add PDFs, screenshots, or scanned records and tag them with the right source metadata. MedBridge now
+                profiles each upload against a vendor-aware extraction family.
               </p>
             </div>
 
@@ -389,8 +435,8 @@ export default function RecordsPage() {
                   className="w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 px-4 py-3 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
                 <datalist id="source-system-suggestions">
-                  {sourceSystemSuggestions.map((option) => (
-                    <option key={option} value={option} />
+                  {sourceSystems.map((option) => (
+                    <option key={option.slug} value={option.display_name} />
                   ))}
                 </datalist>
               </label>
@@ -457,9 +503,63 @@ export default function RecordsPage() {
               </label>
             </div>
 
+            <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="rounded-xl border border-sky-100 bg-sky-50/80 p-4 dark:border-sky-900 dark:bg-sky-950/30">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700 dark:text-sky-300">
+                  Extraction family
+                </div>
+                <div className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
+                  {selectedSourceSystem?.display_name || uploadForm.source_system || "Unknown source system"}
+                </div>
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                  {selectedSourceSystem
+                    ? `${formatFamilyLabel(selectedSourceSystem.family)} workflow tuned for ${selectedSourceSystem.care_setting}.`
+                    : "Generic scanned-record fallback profile."}
+                </p>
+                {selectedSourceSystem?.focus && selectedSourceSystem.focus.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {selectedSourceSystem.focus.map((focus) => (
+                      <span
+                        key={focus}
+                        className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-sky-700 dark:bg-slate-900 dark:text-sky-300"
+                      >
+                        {focus}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50/80 p-4 dark:border-emerald-900 dark:bg-emerald-950/30">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700 dark:text-emerald-300">
+                  Expected extraction targets
+                </div>
+                <div className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
+                  {selectedDocumentType?.label || "Selected medical document type"}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(selectedDocumentType?.default_targets ?? []).map((target) => (
+                    <span
+                      key={target}
+                      className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-slate-900 dark:text-emerald-300"
+                    >
+                      {formatTargetLabel(target)}
+                    </span>
+                  ))}
+                  {(selectedDocumentType?.default_targets ?? []).length === 0 && (
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      This profile falls back to generic metadata extraction first.
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-xs text-gray-400">
-                Supported files: PDF, PNG, JPG, WEBP, HEIC, TIFF. Maximum size: 8 MB. MedBridge now stores the EHR/vendor, source label, facility, document kind, and extraction profile so later OCR can branch for layouts like eClinicalWorks, Epic, Cerner, athenahealth, and generic scans.
+                Supported files: PDF, PNG, JPG, WEBP, HEIC, TIFF. Maximum size: 8 MB. MedBridge now profiles uploads for
+                Epic, Oracle/Cerner, MEDITECH, athenahealth, eClinicalWorks, NextGen, Tebra, Practice Fusion, Greenway,
+                AdvancedMD, Allscripts/Veradigm, DrChrono, CureMD, Praxis, Nextech, SimplePractice/TherapyNotes, VA, and generic scanned records.
               </p>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <button
@@ -480,6 +580,41 @@ export default function RecordsPage() {
               </div>
             </div>
           </form>
+        </FadeIn>
+
+        <FadeIn delay={0.04}>
+          <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+            <div className="flex flex-col gap-1">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Document intelligence coverage</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                This is the registry MedBridge uses to anticipate different chart layouts before OCR and AI extraction are added on top.
+              </p>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+              {Object.entries(groupedSourceSystems).map(([family, systems]) => (
+                <div key={family} className="rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/40">
+                  <div className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
+                    {formatFamilyLabel(family)}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {systems.map((system) => (
+                      <span
+                        key={system.slug}
+                        className="rounded-full bg-white px-3 py-1.5 text-xs font-medium text-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                      >
+                        {system.display_name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {capabilities?.beta_note && (
+              <p className="mt-4 text-xs text-gray-400">{capabilities.beta_note}</p>
+            )}
+          </div>
         </FadeIn>
 
         {/* Search Bar */}
@@ -569,6 +704,19 @@ export default function RecordsPage() {
                             Profile: {record.extraction_profile}
                           </span>
                         )}
+                        {record.source_family && (
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-violet-50 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300">
+                            Family: {formatFamilyLabel(record.source_family)}
+                          </span>
+                        )}
+                        {record.extraction_targets?.map((target) => (
+                          <span
+                            key={`${record.id}-${target}`}
+                            className="px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
+                          >
+                            {formatTargetLabel(target)}
+                          </span>
+                        ))}
                         {record.download_url && (
                           <button
                             type="button"

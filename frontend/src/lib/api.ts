@@ -84,6 +84,7 @@ export interface RecordItem {
   description: string;
   date: string;
   source_system?: string | null;
+  source_family?: string | null;
   source: string;
   facility?: string | null;
   provider: string;
@@ -92,6 +93,7 @@ export interface RecordItem {
   ocr_status?: string | null;
   extraction_status?: string | null;
   extraction_profile?: string | null;
+  extraction_targets?: string[];
   download_url: string | null;
 }
 
@@ -104,6 +106,27 @@ export interface DocumentUploadData {
   document_date: string;
   record_type: string;
   title: string;
+}
+
+export interface DocumentIntelligenceSourceSystem {
+  display_name: string;
+  slug: string;
+  family: string;
+  care_setting: string;
+  focus: string[];
+  likely_record_types: string[];
+}
+
+export interface DocumentIntelligenceDocumentType {
+  value: string;
+  label: string;
+  default_targets: string[];
+}
+
+export interface DocumentIntelligenceData {
+  source_systems: DocumentIntelligenceSourceSystem[];
+  document_types: DocumentIntelligenceDocumentType[];
+  beta_note: string;
 }
 
 export interface ProviderData {
@@ -307,6 +330,10 @@ class ApiClient {
       method: "POST",
       body: formData,
     });
+  }
+
+  async documentIntelligence(): Promise<DocumentIntelligenceData> {
+    return this.request("/api/records/document-intelligence");
   }
 
   async downloadDocument(path: string): Promise<Blob> {

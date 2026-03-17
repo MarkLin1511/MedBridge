@@ -185,6 +185,9 @@ class TestDocumentUploads:
         assert payload["source_system"] == "eClinicalWorks"
         assert payload["facility"] == "Downtown Cardiology"
         assert payload["extraction_profile"] == "eclinicalworks__progress_note"
+        assert payload["source_family"] == "ambulatory"
+        assert "assessment" in payload["extraction_targets"]
+        assert "patient_portal_layout" in payload["extraction_targets"]
 
         stored = session.get(MedicalDocument, payload["id"])
         assert stored is not None
@@ -206,6 +209,7 @@ class TestDocumentUploads:
         assert len(visit_records) == 1
         assert visit_records[0]["classification"] == "progress_note"
         assert visit_records[0]["extraction_profile"] == "eclinicalworks__progress_note"
+        assert "vitals" in visit_records[0]["extraction_targets"]
 
     def test_download_document_requires_matching_user(
         self, client: TestClient, auth_headers: dict, session: Session, demo_user
@@ -228,3 +232,32 @@ class TestDocumentUploads:
         download = client.get(f"/api/records/documents/{document.id}/download", headers=auth_headers)
         assert download.status_code == 200
         assert download.content == b"lab-data"
+
+    def test_document_intelligence_capabilities_include_major_systems(
+        self, client: TestClient, auth_headers: dict
+    ):
+        response = client.get("/api/records/document-intelligence", headers=auth_headers)
+        assert response.status_code == 200
+        payload = response.json()
+
+        systems = {item["display_name"] for item in payload["source_systems"]}
+        assert "Epic (MyChart)" in systems
+        assert "Oracle Health (Cerner)" in systems
+        assert "MEDITECH" in systems
+        assert "athenahealth (athenaOne)" in systems
+        assert "eClinicalWorks" in systems
+        assert "NextGen Healthcare" in systems
+        assert "Tebra (Kareo + PatientPop)" in systems
+        assert "Practice Fusion" in systems
+        assert "Greenway Health / Intergy" in systems
+        assert "AdvancedMD" in systems
+        assert "Allscripts / Veradigm" in systems
+        assert "DrChrono" in systems
+        assert "CureMD" in systems
+        assert "Praxis EMR" in systems
+        assert "Nextech" in systems
+        assert "SimplePractice / TherapyNotes" in systems
+
+        document_types = {item["value"]: item for item in payload["document_types"]}
+        assert "progress_note" in document_types
+        assert "assessment" in document_types["progress_note"]["default_targets"]

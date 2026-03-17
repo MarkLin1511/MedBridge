@@ -1,4 +1,36 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const DEFAULT_LOCAL_API_URL = "http://localhost:8000";
+const DEFAULT_PROD_API_URL = "https://medbridge-backend.vercel.app";
+
+function trimTrailingSlash(value: string) {
+  return value.replace(/\/+$/, "");
+}
+
+function resolveApiUrl() {
+  const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
+
+  if (configured) {
+    try {
+      const configuredUrl = new URL(configured);
+      if (typeof window !== "undefined") {
+        const currentUrl = new URL(window.location.origin);
+        const isSameFrontendHost = configuredUrl.hostname === currentUrl.hostname;
+        const isVercelFrontend = currentUrl.hostname.endsWith("vercel.app");
+        if (isSameFrontendHost && isVercelFrontend) {
+          return DEFAULT_PROD_API_URL;
+        }
+      }
+      return trimTrailingSlash(configuredUrl.origin + configuredUrl.pathname);
+    } catch {
+      return trimTrailingSlash(configured);
+    }
+  }
+
+  if (typeof window !== "undefined" && window.location.hostname.endsWith("vercel.app")) {
+    return DEFAULT_PROD_API_URL;
+  }
+
+  return DEFAULT_LOCAL_API_URL;
+}
 
 export class ApiError extends Error {
   status: number;
@@ -239,7 +271,7 @@ class ApiClient {
     }
 
     const doFetch = async (): Promise<Response> => {
-      return fetch(`${API_URL}${path}`, {
+      return fetch(`${resolveApiUrl()}${path}`, {
         ...options,
         headers: { ...headers, ...(options?.headers as Record<string, string>) },
       });
@@ -352,7 +384,7 @@ class ApiClient {
     const headers: Record<string, string> = {};
     if (this.token) headers["Authorization"] = `Bearer ${this.token}`;
 
-    const response = await fetch(`${API_URL}${path}`, {
+    const response = await fetch(`${resolveApiUrl()}${path}`, {
       method: "GET",
       headers,
     });

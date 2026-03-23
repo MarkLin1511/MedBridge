@@ -186,9 +186,9 @@ export default function SettingsPage() {
 
   if (authLoading || loading || !settings) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <div className="min-h-screen medbridge-themed">
         <Navbar />
-        <div className="flex items-center justify-center h-[60vh]">
+        <div className="medbridge-page-content flex items-center justify-center h-[60vh]">
           <div className="flex flex-col items-center gap-3">
             <div className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
             <span className="text-sm text-gray-500">Loading settings...</span>
@@ -206,7 +206,7 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 md:pb-0">
+    <div className="min-h-screen medbridge-themed pb-20 md:pb-0">
       <Navbar />
 
       {/* Delete Account Confirmation Modal */}
@@ -258,7 +258,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <div className="medbridge-page-content max-w-3xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <FadeIn>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Settings</h1>
           <p className="mt-1 text-sm text-gray-500">Manage your account, security, and data preferences</p>

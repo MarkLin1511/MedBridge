@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import {
   LineChart,
   Line,
@@ -27,23 +26,10 @@ interface LabChartProps {
 }
 
 export default function LabChart({ title, unit, data, refMin, refMax }: LabChartProps) {
-  const [isDark, setIsDark] = useState(false);
-
-  useEffect(() => {
-    const match = window.matchMedia("(prefers-color-scheme: dark)");
-    setIsDark(match.matches);
-    const handler = (e: MediaQueryListEvent) => setIsDark(e.matches);
-    match.addEventListener("change", handler);
-    return () => match.removeEventListener("change", handler);
-  }, []);
-
   if (data.length === 0) {
     return (
-      <div
-        className="glass-panel rounded-[1.75rem] p-5"
-        aria-label={`${title} trend chart`}
-      >
-        <div className="flex items-center justify-between mb-4">
+      <div className="glass-panel rounded-[1.75rem] p-5" aria-label={`${title} trend chart`}>
+        <div className="mb-4 flex items-center justify-between">
           <div>
             <h3 className="font-semibold text-white">{title}</h3>
             <p className="mt-0.5 text-xs text-slate-400">
@@ -53,25 +39,22 @@ export default function LabChart({ title, unit, data, refMin, refMax }: LabChart
             </p>
           </div>
         </div>
-        <div className="h-48 sm:h-56 flex items-center justify-center">
+        <div className="flex h-48 items-center justify-center sm:h-56">
           <p className="text-sm text-slate-400">No data available</p>
         </div>
       </div>
     );
   }
 
-  const gridStroke = isDark ? "rgba(148, 163, 184, 0.16)" : "rgba(148, 163, 184, 0.12)";
-  const tickFill = isDark ? "#94a3b8" : "#7c8da5";
-  const tooltipBg = isDark ? "rgba(7, 18, 31, 0.96)" : "rgba(7, 18, 31, 0.96)";
+  const gridStroke = "rgba(148, 163, 184, 0.16)";
+  const tickFill = "#94a3b8";
+  const tooltipBg = "rgba(7, 18, 31, 0.96)";
   const tooltipColor = "#f8fafc";
   const tooltipBorder = "rgba(148, 163, 184, 0.22)";
 
   return (
-    <div
-      className="glass-panel rounded-[1.75rem] p-5"
-      aria-label={`${title} trend chart`}
-    >
-      <div className="flex items-center justify-between mb-4">
+    <div className="glass-panel rounded-[1.75rem] p-5" aria-label={`${title} trend chart`}>
+      <div className="mb-4 flex items-center justify-between">
         <div>
           <h3 className="font-semibold text-white">{title}</h3>
           <p className="mt-0.5 text-xs text-slate-400">
@@ -121,12 +104,8 @@ export default function LabChart({ title, unit, data, refMin, refMax }: LabChart
               formatter={(value: number | undefined) => [`${value ?? ""} ${unit}`, title]}
               labelFormatter={(label: unknown) => `Date: ${label}`}
             />
-            {refMin !== undefined && (
-              <ReferenceLine y={refMin} stroke="#6ee7b7" strokeDasharray="4 4" />
-            )}
-            {refMax !== undefined && (
-              <ReferenceLine y={refMax} stroke="#6ee7b7" strokeDasharray="4 4" />
-            )}
+            {refMin !== undefined && <ReferenceLine y={refMin} stroke="#6ee7b7" strokeDasharray="4 4" />}
+            {refMax !== undefined && <ReferenceLine y={refMax} stroke="#6ee7b7" strokeDasharray="4 4" />}
             <Line
               type="monotone"
               dataKey="value"

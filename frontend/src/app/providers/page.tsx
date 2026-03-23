@@ -139,9 +139,9 @@ export default function ProvidersPage() {
 
   if (authLoading || loading || !providers) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <div className="min-h-screen medbridge-themed">
         <Navbar />
-        <div className="flex items-center justify-center h-[60vh]">
+        <div className="medbridge-page-content flex items-center justify-center h-[60vh]">
           <div className="flex flex-col items-center gap-3">
             <div role="status" className="w-8 h-8 border-2 border-teal-600 border-t-transparent rounded-full animate-spin" />
             <span className="text-sm text-gray-500">Loading providers...</span>
@@ -152,10 +152,10 @@ export default function ProvidersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 md:pb-0">
+    <div className="min-h-screen medbridge-themed pb-20 md:pb-0">
       <Navbar />
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <div className="medbridge-page-content max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <FadeIn>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Providers & Portals</h1>
           <p className="mt-1 text-sm text-gray-500">Manage who can access your health records and connected data sources</p>

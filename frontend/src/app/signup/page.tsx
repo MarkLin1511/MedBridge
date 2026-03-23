@@ -75,200 +75,254 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-teal-600 text-white flex-col justify-between p-12">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-          </div>
-          <span className="text-xl font-bold">MedBridge</span>
-        </div>
-        <div>
-          <h2 className="text-3xl font-bold leading-tight">
-            Take control of your<br />health data today.
-          </h2>
-          <p className="mt-4 text-teal-100 text-lg">
-            Connect your existing portals, add wearable data, and share with any provider you choose.
-          </p>
-        </div>
-        <p className="text-sm text-teal-200">Free for patients &middot; Always</p>
-      </div>
-
-      {/* Right panel */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
-        <div className="w-full max-w-sm">
-          <div className="lg:hidden flex items-center gap-2 mb-10">
-            <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
+    <div className="medbridge-themed min-h-screen">
+      <div className="medbridge-page-content mx-auto flex min-h-screen max-w-6xl items-center px-4 py-8 sm:px-6 lg:px-8">
+        <div className="grid w-full gap-8 lg:grid-cols-[1.02fr_minmax(0,0.98fr)]">
+          <div className="hidden lg:flex medbridge-panel rounded-[2rem] p-10 flex-col justify-between overflow-hidden">
+            <div className="flex items-center justify-between">
+              <Link href="/" className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-teal-400 via-teal-500 to-emerald-500 shadow-lg shadow-teal-950/50 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="medbridge-kicker text-[11px] font-semibold">Patient-controlled access</div>
+                  <div className="text-lg font-semibold text-white">MedBridge</div>
+                </div>
+              </Link>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-teal-100">
+                New account
+              </span>
             </div>
-            <span className="text-xl font-bold text-gray-900 dark:text-white">MedBridge</span>
-          </div>
 
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Create your account</h1>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Start unifying your health records in minutes</p>
-
-          {error && (
-            <div
-              id="signup-error"
-              role="alert"
-              className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300"
-            >
-              {error}
+            <div className="max-w-xl">
+              <p className="medbridge-kicker text-xs font-semibold">Start the demo journey</p>
+              <h2 className="mt-4 text-4xl font-semibold leading-tight text-white">
+                Bring every portal, provider, and wearable feed into one calm timeline.
+              </h2>
+              <p className="mt-5 text-lg leading-8 medbridge-copy">
+                The signup flow now shares the same dark-glass shell and clinical accent palette as the landing page and dashboard, so the experience feels cohesive before the first record ever loads.
+              </p>
             </div>
-          )}
 
-          <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="first" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">First name</label>
-                <input
-                  id="first"
-                  type="text"
-                  value={form.first_name}
-                  onChange={(e) => update("first_name", e.target.value)}
-                  placeholder="Jane"
-                  required
-                  aria-label="First name"
-                  aria-describedby={error ? "signup-error" : undefined}
-                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                />
+            <div className="space-y-5">
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: "Portal sync", value: "Epic + Cerner" },
+                  { label: "Sharing controls", value: "Granular" },
+                  { label: "Audit history", value: "Always on" },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{item.label}</div>
+                    <div className="mt-2 text-sm font-semibold leading-6 text-white">{item.value}</div>
+                  </div>
+                ))}
               </div>
-              <div>
-                <label htmlFor="last" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Last name</label>
-                <input
-                  id="last"
-                  type="text"
-                  value={form.last_name}
-                  onChange={(e) => update("last_name", e.target.value)}
-                  placeholder="Doe"
-                  required
-                  aria-label="Last name"
-                  aria-describedby={error ? "signup-error" : undefined}
-                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-              <input
-                id="email"
-                type="email"
-                value={form.email}
-                onChange={(e) => update("email", e.target.value)}
-                placeholder="you@example.com"
-                required
-                aria-label="Email address"
-                aria-describedby={error ? "signup-error" : undefined}
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label htmlFor="dob" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date of birth</label>
-              <input
-                id="dob"
-                type="date"
-                value={form.dob}
-                onChange={(e) => update("dob", e.target.value)}
-                aria-label="Date of birth"
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">I am a...</label>
-              <select
-                id="role"
-                value={form.role}
-                onChange={(e) => update("role", e.target.value)}
-                aria-label="Account role"
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              >
-                <option value="patient">Patient</option>
-                <option value="provider">Healthcare Provider</option>
-                <option value="admin">Hospital Administrator</option>
-              </select>
-            </div>
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
-              <input
-                id="password"
-                type="password"
-                value={form.password}
-                onChange={(e) => update("password", e.target.value)}
-                placeholder="••••••••"
-                required
-                aria-label="Password"
-                aria-describedby="password-requirements"
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              />
-              {/* Password strength indicator */}
-              {form.password.length > 0 && (
-                <ul id="password-requirements" className="mt-2 space-y-1" aria-label="Password requirements">
-                  {passwordChecks.map((check) => (
-                    <li key={check.label} className="flex items-center gap-2 text-xs">
-                      {check.met ? (
-                        <svg className="w-3.5 h-3.5 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                      ) : (
-                        <svg className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      )}
-                      <span className={check.met ? "text-green-600 dark:text-green-400" : "text-gray-400"}>
-                        {check.label}
-                      </span>
-                    </li>
+
+              <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/60 p-5 shadow-[0_24px_60px_rgba(2,8,20,0.35)]">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <span className="text-sm font-semibold text-white">What you get on day one</span>
+                  <span className="text-xs text-slate-400">Built for patients</span>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {[
+                    "Connect existing records with SMART on FHIR flows.",
+                    "Review a unified timeline across visits, labs, and wearables.",
+                    "Approve or revoke provider access from one dashboard.",
+                  ].map((item) => (
+                    <div key={item} className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+                      <span className="mt-1 h-2.5 w-2.5 rounded-full bg-teal-300 shrink-0" />
+                      <p className="text-sm leading-6 text-slate-200">{item}</p>
+                    </div>
                   ))}
-                </ul>
-              )}
+                </div>
+              </div>
             </div>
-            <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirm password</label>
-              <input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                aria-label="Confirm password"
-                aria-describedby={
-                  confirmPassword.length > 0 && !passwordsMatch ? "password-mismatch" : error ? "signup-error" : undefined
-                }
-                className={`w-full px-4 py-2.5 border rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent ${
-                  confirmPassword.length > 0 && !passwordsMatch
-                    ? "border-red-300 dark:border-red-700"
-                    : "border-gray-200 dark:border-gray-700"
-                }`}
-              />
-              {confirmPassword.length > 0 && !passwordsMatch && (
-                <p id="password-mismatch" className="mt-1 text-xs text-red-500">
-                  Passwords do not match
-                </p>
+          </div>
+
+          <div className="w-full max-w-xl lg:justify-self-end">
+            <div className="medbridge-auth-card rounded-[2rem] p-7 sm:p-9">
+              <div className="flex items-center justify-between">
+                <Link href="/" className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-teal-400 via-teal-500 to-emerald-500 shadow-lg shadow-teal-950/50 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="text-lg font-semibold text-white">MedBridge</div>
+                    <div className="text-xs text-slate-400">Create secure access</div>
+                  </div>
+                </Link>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
+                  Onboarding
+                </span>
+              </div>
+
+              <div className="mt-10">
+                <h1 className="text-3xl font-semibold text-white">Create your account</h1>
+                <p className="mt-3 text-sm leading-6 medbridge-copy">Start unifying your health records in minutes</p>
+              </div>
+
+              {error && (
+                <div
+                  id="signup-error"
+                  role="alert"
+                  className="mt-5 rounded-2xl border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+                >
+                  {error}
+                </div>
               )}
+
+              <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="first" className="mb-1.5 block text-sm font-medium text-slate-200">First name</label>
+                    <input
+                      id="first"
+                      type="text"
+                      value={form.first_name}
+                      onChange={(e) => update("first_name", e.target.value)}
+                      placeholder="Jane"
+                      required
+                      aria-label="First name"
+                      aria-describedby={error ? "signup-error" : undefined}
+                      className="medbridge-input w-full rounded-xl px-4 py-3 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="last" className="mb-1.5 block text-sm font-medium text-slate-200">Last name</label>
+                    <input
+                      id="last"
+                      type="text"
+                      value={form.last_name}
+                      onChange={(e) => update("last_name", e.target.value)}
+                      placeholder="Doe"
+                      required
+                      aria-label="Last name"
+                      aria-describedby={error ? "signup-error" : undefined}
+                      className="medbridge-input w-full rounded-xl px-4 py-3 text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-200">Email</label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => update("email", e.target.value)}
+                    placeholder="you@example.com"
+                    required
+                    aria-label="Email address"
+                    aria-describedby={error ? "signup-error" : undefined}
+                    className="medbridge-input w-full rounded-xl px-4 py-3 text-sm"
+                  />
+                </div>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="dob" className="mb-1.5 block text-sm font-medium text-slate-200">Date of birth</label>
+                    <input
+                      id="dob"
+                      type="date"
+                      value={form.dob}
+                      onChange={(e) => update("dob", e.target.value)}
+                      aria-label="Date of birth"
+                      className="medbridge-input w-full rounded-xl px-4 py-3 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="role" className="mb-1.5 block text-sm font-medium text-slate-200">I am a...</label>
+                    <select
+                      id="role"
+                      value={form.role}
+                      onChange={(e) => update("role", e.target.value)}
+                      aria-label="Account role"
+                      className="medbridge-input w-full rounded-xl px-4 py-3 text-sm"
+                    >
+                      <option value="patient">Patient</option>
+                      <option value="provider">Healthcare Provider</option>
+                      <option value="admin">Hospital Administrator</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-200">Password</label>
+                  <input
+                    id="password"
+                    type="password"
+                    value={form.password}
+                    onChange={(e) => update("password", e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    aria-label="Password"
+                    aria-describedby="password-requirements"
+                    className="medbridge-input w-full rounded-xl px-4 py-3 text-sm"
+                  />
+                  {form.password.length > 0 && (
+                    <ul id="password-requirements" className="mt-3 space-y-2" aria-label="Password requirements">
+                      {passwordChecks.map((check) => (
+                        <li key={check.label} className="flex items-center gap-2 text-xs">
+                          {check.met ? (
+                            <svg className="w-3.5 h-3.5 text-emerald-300 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          ) : (
+                            <svg className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          )}
+                          <span className={check.met ? "text-emerald-200" : "text-slate-400"}>
+                            {check.label}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div>
+                  <label htmlFor="confirmPassword" className="mb-1.5 block text-sm font-medium text-slate-200">Confirm password</label>
+                  <input
+                    id="confirmPassword"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    aria-label="Confirm password"
+                    aria-describedby={
+                      confirmPassword.length > 0 && !passwordsMatch ? "password-mismatch" : error ? "signup-error" : undefined
+                    }
+                    className={`medbridge-input w-full rounded-xl px-4 py-3 text-sm ${
+                      confirmPassword.length > 0 && !passwordsMatch ? "border-red-400/30" : ""
+                    }`}
+                  />
+                  {confirmPassword.length > 0 && !passwordsMatch && (
+                    <p id="password-mismatch" className="mt-2 text-xs text-red-200">
+                      Passwords do not match
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading || !allChecksMet || (confirmPassword.length > 0 && !passwordsMatch)}
+                  className="w-full rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 px-4 py-3 font-medium text-white shadow-lg shadow-teal-950/40 transition-transform duration-200 hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? "Creating account..." : "Create account"}
+                </button>
+              </form>
+
+              <p className="mt-4 text-center text-xs leading-6 text-slate-400">
+                By signing up, you agree to our Terms of Service and Privacy Policy.
+                Your data is encrypted and HIPAA-protected.
+              </p>
+
+              <div className="mt-6 text-center text-sm text-slate-300">
+                Already have an account?{" "}
+                <Link href="/login" className="medbridge-link font-medium">Sign in</Link>
+              </div>
             </div>
-            <button
-              type="submit"
-              disabled={loading || !allChecksMet || (confirmPassword.length > 0 && !passwordsMatch)}
-              className="w-full bg-teal-600 text-white py-2.5 rounded-lg font-medium hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? "Creating account..." : "Create account"}
-            </button>
-          </form>
-
-          <p className="mt-4 text-xs text-gray-500 text-center">
-            By signing up, you agree to our Terms of Service and Privacy Policy.
-            Your data is encrypted and HIPAA-protected.
-          </p>
-
-          <div className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
-            Already have an account?{" "}
-            <Link href="/login" className="text-teal-600 hover:text-teal-700 font-medium">Sign in</Link>
           </div>
         </div>
       </div>

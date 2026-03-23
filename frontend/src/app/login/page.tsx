@@ -42,118 +42,190 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left panel */}
-      <div className="hidden lg:flex lg:w-1/2 bg-teal-600 text-white flex-col justify-between p-12">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-          </div>
-          <span className="text-xl font-bold">MedBridge</span>
-        </div>
-        <div>
-          <h2 className="text-3xl font-bold leading-tight">
-            Your complete health record,<br />accessible anywhere.
-          </h2>
-          <p className="mt-4 text-teal-100 text-lg">
-            No more repeating your history. No more lost lab results.
-            One unified view for you and every provider you authorize.
-          </p>
-        </div>
-        <p className="text-sm text-teal-200">HIPAA compliant &middot; FHIR R4 &middot; End-to-end encrypted</p>
-      </div>
-
-      {/* Right panel */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
-        <div className="w-full max-w-sm">
-          <div className="lg:hidden flex items-center gap-2 mb-10">
-            <div className="w-8 h-8 rounded-lg bg-teal-600 flex items-center justify-center">
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-              </svg>
+    <div className="medbridge-themed min-h-screen">
+      <div className="medbridge-page-content mx-auto flex min-h-screen max-w-6xl items-center px-4 py-8 sm:px-6 lg:px-8">
+        <div className="grid w-full gap-8 lg:grid-cols-[1.08fr_minmax(0,0.92fr)]">
+          <div className="hidden lg:flex medbridge-panel rounded-[2rem] p-10 flex-col justify-between overflow-hidden">
+            <div className="flex items-center justify-between">
+              <Link href="/" className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-teal-400 via-teal-500 to-emerald-500 shadow-lg shadow-teal-950/50 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="medbridge-kicker text-[11px] font-semibold">Unified Patient Record</div>
+                  <div className="text-lg font-semibold text-white">MedBridge</div>
+                </div>
+              </Link>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-teal-100">
+                Demo Access
+              </span>
             </div>
-            <span className="text-xl font-bold text-gray-900 dark:text-white">MedBridge</span>
-          </div>
 
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome back</h1>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Sign in to access your health records</p>
-
-          {error && (
-            <div
-              id="login-error"
-              role="alert"
-              className="mt-4 p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm text-red-700 dark:text-red-300"
-            >
-              {error}
+            <div className="max-w-xl">
+              <p className="medbridge-kicker text-xs font-semibold">Continuous care</p>
+              <h2 className="mt-4 text-4xl font-semibold leading-tight text-white">
+                Your complete health record, always in one place.
+              </h2>
+              <p className="mt-5 text-lg leading-8 medbridge-copy">
+                MedBridge now carries the same ambient, clinical theme from the landing experience into the demo login, so the transition into the live product feels seamless.
+              </p>
             </div>
-          )}
 
-          <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                aria-label="Email address"
-                aria-describedby={error ? "login-error" : undefined}
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
-                <button
-                  type="button"
-                  disabled
-                  className="text-xs text-teal-600 hover:text-teal-700 font-medium cursor-not-allowed opacity-70"
-                  aria-label="Forgot password (coming soon)"
-                >
-                  Forgot password?
-                </button>
+            <div className="space-y-5">
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: "Connected portals", value: "12" },
+                  { label: "FHIR exports", value: "3" },
+                  { label: "Wearable feeds", value: "Live" },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="text-xs uppercase tracking-[0.18em] text-slate-400">{item.label}</div>
+                    <div className="mt-2 text-2xl font-semibold text-white">{item.value}</div>
+                  </div>
+                ))}
               </div>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                aria-label="Password"
-                aria-describedby={error ? "login-error" : undefined}
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-teal-600 text-white py-2.5 rounded-lg font-medium hover:bg-teal-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? "Signing in..." : "Sign in"}
-            </button>
-          </form>
 
-          <div className="mt-4">
-            <button
-              onClick={handleDemoLogin}
-              disabled={loading}
-              className="w-full py-2.5 rounded-lg font-medium border-2 border-dashed border-teal-300 dark:border-teal-700 text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/30 transition-colors disabled:opacity-50"
-            >
-              Try demo account <span className="text-xs opacity-70">(Demo mode)</span>
-            </button>
-            <p className="mt-1.5 text-center text-xs text-gray-400">
-              Instant access to the seeded MedBridge patient profile
-            </p>
+              <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/60 p-5 shadow-[0_24px_60px_rgba(2,8,20,0.35)]">
+                <div className="flex items-center justify-between border-b border-white/10 pb-3">
+                  <div className="flex gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-rose-400" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                  </div>
+                  <span className="text-xs text-slate-400">Live dashboard preview</span>
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-3">
+                  {[
+                    { label: "Heart rate", value: "72 bpm" },
+                    { label: "Glucose", value: "112 mg/dL" },
+                    { label: "Portal sync", value: "4 min ago" },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                      <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">{item.label}</div>
+                      <div className="mt-2 text-sm font-semibold text-white">{item.value}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 flex items-center gap-3 text-xs text-slate-400">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-teal-400/10 px-3 py-1 text-teal-200">
+                    <span className="h-2 w-2 rounded-full bg-teal-300" />
+                    HIPAA compliant
+                  </span>
+                  <span>FHIR R4</span>
+                  <span>End-to-end encrypted</span>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
-            Don&apos;t have an account?{" "}
-            <Link href="/signup" className="text-teal-600 hover:text-teal-700 font-medium">Sign up</Link>
+          <div className="w-full max-w-md lg:justify-self-end">
+            <div className="medbridge-auth-card rounded-[2rem] p-7 sm:p-9">
+              <div className="flex items-center justify-between">
+                <Link href="/" className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-teal-400 via-teal-500 to-emerald-500 shadow-lg shadow-teal-950/50 flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                  </div>
+                  <div>
+                    <div className="text-lg font-semibold text-white">MedBridge</div>
+                    <div className="text-xs text-slate-400">Secure patient access</div>
+                  </div>
+                </Link>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
+                  Demo login
+                </span>
+              </div>
+
+              <div className="mt-10">
+                <h1 className="text-3xl font-semibold text-white">Welcome back</h1>
+                <p className="mt-3 text-sm leading-6 medbridge-copy">Sign in to access your health records</p>
+              </div>
+
+              {error && (
+                <div
+                  id="login-error"
+                  role="alert"
+                  className="mt-5 rounded-2xl border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+                >
+                  {error}
+                </div>
+              )}
+
+              <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+                <div>
+                  <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-200">Email</label>
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    required
+                    aria-label="Email address"
+                    aria-describedby={error ? "login-error" : undefined}
+                    className="medbridge-input w-full rounded-xl px-4 py-3 text-sm"
+                  />
+                </div>
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <label htmlFor="password" className="block text-sm font-medium text-slate-200">Password</label>
+                    <button
+                      type="button"
+                      disabled
+                      className="cursor-not-allowed text-xs font-medium text-teal-200/70"
+                      aria-label="Forgot password (coming soon)"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                  <input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    aria-label="Password"
+                    aria-describedby={error ? "login-error" : undefined}
+                    className="medbridge-input w-full rounded-xl px-4 py-3 text-sm"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 px-4 py-3 font-medium text-white shadow-lg shadow-teal-950/40 transition-transform duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-50"
+                >
+                  {loading ? "Signing in..." : "Sign in"}
+                </button>
+              </form>
+
+              <div className="mt-4">
+                <button
+                  onClick={handleDemoLogin}
+                  disabled={loading}
+                  className="w-full rounded-xl border border-dashed border-teal-300/30 bg-teal-400/8 px-4 py-3 font-medium text-teal-100 transition-colors hover:bg-teal-400/12 disabled:opacity-50"
+                >
+                  Try demo account <span className="text-xs opacity-70">(Demo mode)</span>
+                </button>
+                <p className="mt-2 text-center text-xs text-slate-400">
+                  Instant access to the seeded MedBridge patient profile
+                </p>
+              </div>
+
+              <div className="mt-8 flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-slate-400">
+                <span>HIPAA compliant</span>
+                <span>FHIR R4</span>
+                <span>AES-256</span>
+              </div>
+
+              <div className="mt-6 text-center text-sm text-slate-300">
+                Don&apos;t have an account?{" "}
+                <Link href="/signup" className="medbridge-link font-medium">Sign up</Link>
+              </div>
+            </div>
           </div>
         </div>
       </div>

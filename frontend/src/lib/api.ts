@@ -80,7 +80,24 @@ export interface DashboardData {
     connected_portals: number;
     abnormal_labs: number;
     wearable_metrics: number;
+    uploaded_documents: number;
+    pending_reviews: number;
+    manual_lab_entries: number;
   };
+  quantified_overview: {
+    score: number;
+    mode: string;
+    narrative: string;
+  };
+  health_axes: {
+    slug: string;
+    label: string;
+    score: number;
+    trend: string;
+    summary: string;
+    focus: string;
+    metrics: { label: string; value: string; status: string }[];
+  }[];
   vitals: { label: string; value: string; trend: string; period: string }[];
   lab_trends: {
     glucose: { date: string; value: number; source: string }[];
@@ -106,7 +123,44 @@ export interface DashboardData {
     date: string;
     source: string;
   }[];
+  ingestion: {
+    uploaded_documents: number;
+    pending_reviews: number;
+    approved_document_imports: number;
+    manual_lab_entries: number;
+    recent_documents: {
+      id: number;
+      title: string;
+      date: string;
+      source_system: string;
+      source: string;
+      status: string;
+      review_summary?: string | null;
+      review_confidence?: number | null;
+      derived_records_count: number;
+    }[];
+    source_mix: {
+      label: string;
+      count: number;
+    }[];
+  };
+  translation: {
+    exportable_resources: number;
+    supported_formats: string[];
+    last_exported_at?: string | null;
+    narrative: string;
+  };
   audit_log: { action: string; by: string; when: string; icon: string }[];
+}
+
+export interface ManualLabEntryData {
+  test_name: string;
+  value: number;
+  unit: string;
+  ref_range?: string;
+  status?: string;
+  source?: string;
+  collected_on?: string;
 }
 
 export interface RecordItem {
@@ -418,6 +472,22 @@ class ApiClient {
   // Dashboard
   async dashboard(): Promise<DashboardData> {
     return this.request("/api/dashboard");
+  }
+
+  async createManualLabEntry(data: ManualLabEntryData): Promise<{
+    id: number;
+    test_name: string;
+    value: number;
+    unit: string;
+    status: string;
+    date: string;
+    source: string;
+  }> {
+    return this.request("/api/dashboard/manual-labs", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: { "Content-Type": "application/json" },
+    });
   }
 
   // Records

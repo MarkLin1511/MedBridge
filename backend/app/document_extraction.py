@@ -45,13 +45,16 @@ class ExtractionArtifact:
 
 
 def extract_text_from_pdf_bytes(payload: bytes) -> str:
-    reader = PdfReader(io.BytesIO(payload))
-    parts: list[str] = []
-    for page in reader.pages:
-        page_text = page.extract_text() or ""
-        if page_text.strip():
-            parts.append(page_text)
-    return "\n".join(parts).strip()
+    try:
+        reader = PdfReader(io.BytesIO(payload))
+        parts: list[str] = []
+        for page in reader.pages:
+            page_text = page.extract_text() or ""
+            if page_text.strip():
+                parts.append(page_text)
+        return "\n".join(parts).strip()
+    except Exception:
+        return ""
 
 
 def _compact_text(text: str) -> str:
@@ -291,7 +294,7 @@ def extract_document(document: MedicalDocument, payload: bytes, supplied_text: s
         pdf_text = extract_text_from_pdf_bytes(payload)
         if pdf_text:
             return pdf_text, "completed_pdf_text", "complete", len(pdf_text)
-        return "", "needs_browser_ocr", "needs_review", 0
+        return "", "queued_pdf_ai", "complete", 0
 
     if document.content_type.startswith("image/"):
         return "", "needs_browser_ocr", "needs_review", 0

@@ -9,6 +9,36 @@ from typing import Any
 
 MODEL_PATH = Path(__file__).resolve().parents[1] / "generated" / "document_profile_model.json"
 TOKEN_RE = re.compile(r"[a-z0-9]+")
+SOURCE_SYSTEM_HINTS = {
+    "epic (mychart)": "epic_mychart",
+    "epic mychart": "epic_mychart",
+    "mychart": "epic_mychart",
+    "oracle health": "oracle_cerner",
+    "cerner": "oracle_cerner",
+    "meditech": "meditech",
+    "athenahealth": "athenahealth",
+    "athenaone": "athenahealth",
+    "eclinicalworks": "eclinicalworks",
+    "e clinical works": "eclinicalworks",
+    "nextgen": "nextgen_healthcare",
+    "tebra": "tebra",
+    "kareo": "tebra",
+    "patientpop": "tebra",
+    "practice fusion": "practice_fusion",
+    "greenway": "greenway_intergy",
+    "intergy": "greenway_intergy",
+    "advancedmd": "advancedmd",
+    "allscripts": "allscripts_veradigm",
+    "veradigm": "allscripts_veradigm",
+    "drchrono": "drchrono",
+    "curemd": "curemd",
+    "praxis": "praxis_emr",
+    "nextech": "nextech",
+    "simplepractice": "behavioral_health",
+    "therapynotes": "behavioral_health",
+    "va health": "va_health",
+    "my healthevet": "va_health",
+}
 
 
 def _tokenize(text: str) -> list[str]:
@@ -58,12 +88,26 @@ def _predict_label(bundle: dict[str, Any], text: str) -> dict[str, Any]:
     }
 
 
+def _forced_source_label(text: str) -> str | None:
+    normalized = " ".join(text.lower().split())
+    for hint, label in SOURCE_SYSTEM_HINTS.items():
+        if hint in normalized:
+            return label
+    return None
+
+
 def classify_text(text: str) -> dict[str, Any] | None:
     payload = _load_model()
     if not payload:
         return None
 
     source_prediction = _predict_label(payload["source_system_model"], text)
+    forced_source = _forced_source_label(text)
+    if forced_source:
+        source_prediction = {
+            "label": forced_source,
+            "confidence": max(source_prediction.get("confidence", 0.0), 0.995),
+        }
     record_prediction = _predict_label(payload["record_type_model"], text)
     return {
         "source_system": source_prediction,

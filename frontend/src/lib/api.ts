@@ -128,6 +128,18 @@ export interface RecordItem {
   extraction_targets?: string[];
   derived_records_count?: number;
   extracted_text_length?: number;
+  review_item_id?: number | null;
+  review_status?: string | null;
+  review_summary?: string | null;
+  review_confidence?: number | null;
+  review_caution_flags?: string[];
+  review_counts?: {
+    labs: number;
+    medications: number;
+    conditions: number;
+    vitals: number;
+    care_plan: number;
+  } | null;
   download_url: string | null;
 }
 
@@ -170,6 +182,67 @@ export interface DocumentIntelligenceData {
     record_type_accuracy: number;
     note: string;
   } | null;
+}
+
+export interface ReviewQueueItem {
+  id: number;
+  document_id: number;
+  document_title: string;
+  document_date: string;
+  source: string;
+  source_system: string;
+  provider: string;
+  facility?: string | null;
+  status: string;
+  confidence: number;
+  summary?: string | null;
+  caution_flags: string[];
+  model_name?: string | null;
+  extraction_engine: string;
+  source_mode: string;
+  refusal_reason?: string | null;
+  counts: {
+    labs: number;
+    medications: number;
+    conditions: number;
+    vitals: number;
+    care_plan: number;
+  };
+  findings: {
+    extraction_summary?: string;
+    key_points?: string[];
+    care_plan?: string[];
+    quality_flags?: string[];
+    labs?: Array<{
+      test_name: string;
+      value_text: string;
+      numeric_value?: number | null;
+      unit?: string | null;
+      reference_range?: string | null;
+      status?: string | null;
+      note?: string | null;
+    }>;
+    medications?: Array<{
+      name: string;
+      dose?: string | null;
+      frequency?: string | null;
+      status?: string | null;
+      note?: string | null;
+    }>;
+    conditions?: Array<{
+      name: string;
+      status?: string | null;
+      note?: string | null;
+    }>;
+    vitals?: Array<{
+      metric: string;
+      value: string;
+      unit?: string | null;
+      note?: string | null;
+    }>;
+  };
+  created_at: string;
+  download_url: string;
 }
 
 export interface ProviderData {
@@ -378,6 +451,22 @@ class ApiClient {
 
   async documentIntelligence(): Promise<DocumentIntelligenceData> {
     return this.request("/api/records/document-intelligence");
+  }
+
+  async reviewQueue(): Promise<ReviewQueueItem[]> {
+    return this.request("/api/records/review-queue");
+  }
+
+  async approveReviewItem(id: number): Promise<{ status: string; created_items: number }> {
+    return this.request(`/api/records/review-queue/${id}/approve`, {
+      method: "POST",
+    });
+  }
+
+  async rejectReviewItem(id: number): Promise<{ status: string }> {
+    return this.request(`/api/records/review-queue/${id}/reject`, {
+      method: "POST",
+    });
   }
 
   async downloadDocument(path: string): Promise<Blob> {

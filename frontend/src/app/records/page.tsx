@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import { FadeIn, FadeInStagger, FadeInStaggerItem } from "@/components/AnimatedSection";
 import { useAuth } from "@/lib/auth";
-import { api, DocumentIntelligenceData, RecordItem } from "@/lib/api";
+import { api, DocumentIntelligenceData, RecordItem, ReviewQueueItem } from "@/lib/api";
 import { extractDocumentTextInBrowser } from "@/lib/documentOcr";
 import { toast } from "sonner";
 
@@ -90,6 +90,11 @@ function formatFamilyLabel(value: string | null | undefined) {
   return value.replace(/_/g, " ");
 }
 
+function formatConfidence(value: number | null | undefined) {
+  if (typeof value !== "number") return null;
+  return `${Math.round(value * 100)}% confidence`;
+}
+
 const samplePdfContent = `%PDF-1.4
 1 0 obj
 << /Type /Catalog /Pages 2 0 R >>
@@ -154,6 +159,8 @@ export default function RecordsPage() {
   const [uploadPhase, setUploadPhase] = useState("Upload document");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [capabilities, setCapabilities] = useState<DocumentIntelligenceData | null>(null);
+  const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>([]);
+  const [reviewActionId, setReviewActionId] = useState<number | null>(null);
   const [uploadForm, setUploadForm] = useState({
     title: "",
     source_system: "eClinicalWorks",
@@ -187,9 +194,11 @@ export default function RecordsPage() {
       return;
     }
     setLoading(true);
-    api
-      .records(filter, debouncedSearch, 0, 50)
-      .then(setRecords)
+    Promise.all([api.records(filter, debouncedSearch, 0, 50), api.reviewQueue()])
+      .then(([nextRecords, nextReviewQueue]) => {
+        setRecords(nextRecords);
+        setReviewQueue(nextReviewQueue);
+      })
       .catch(() => toast.error("Failed to load records"))
       .finally(() => setLoading(false));
   }, [user, authLoading, router, filter, debouncedSearch]);
@@ -204,8 +213,12 @@ export default function RecordsPage() {
   const refreshRecords = async () => {
     setLoading(true);
     try {
-      const next = await api.records(filter, debouncedSearch, 0, 50);
-      setRecords(next);
+      const [nextRecords, nextReviewQueue] = await Promise.all([
+        api.records(filter, debouncedSearch, 0, 50),
+        api.reviewQueue(),
+      ]);
+      setRecords(nextRecords);
+      setReviewQueue(nextReviewQueue);
     } catch {
       toast.error("Failed to load records");
     } finally {
@@ -250,7 +263,7 @@ export default function RecordsPage() {
     setUploadPhase(selectedFile.type.startsWith("image/") ? "Running OCR in browser..." : "Uploading document...");
     try {
       await uploadDocumentFile(selectedFile);
-      toast.success("Document uploaded to your record timeline");
+      toast.success("Document uploaded and queued for AI review");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to upload document";
       toast.error(message);
@@ -273,7 +286,7 @@ export default function RecordsPage() {
         document_date: new Date().toISOString().slice(0, 10),
         record_type: "referral_note",
       });
-      toast.success("Sample document uploaded successfully");
+      toast.success("Sample document uploaded and queued for review");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to upload sample document";
       toast.error(message);
@@ -295,6 +308,34 @@ export default function RecordsPage() {
       URL.revokeObjectURL(url);
     } catch {
       toast.error("Failed to download original document");
+    }
+  };
+
+  const handleApproveReview = async (reviewItem: ReviewQueueItem) => {
+    setReviewActionId(reviewItem.id);
+    try {
+      const result = await api.approveReviewItem(reviewItem.id);
+      toast.success(`Imported ${result.created_items} reviewed items into your timeline`);
+      await refreshRecords();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to approve extraction";
+      toast.error(message);
+    } finally {
+      setReviewActionId(null);
+    }
+  };
+
+  const handleRejectReview = async (reviewItem: ReviewQueueItem) => {
+    setReviewActionId(reviewItem.id);
+    try {
+      await api.rejectReviewItem(reviewItem.id);
+      toast.success("Extraction draft dismissed");
+      await refreshRecords();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to reject extraction";
+      toast.error(message);
+    } finally {
+      setReviewActionId(null);
     }
   };
 
@@ -411,7 +452,7 @@ export default function RecordsPage() {
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Upload medical documents</h2>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Add PDFs, screenshots, or scanned records and tag them with the right source metadata. MedBridge now
-                profiles each upload against a vendor-aware extraction family.
+                runs vendor-aware extraction with strict schema output, then holds the draft in a review queue before it touches the timeline.
               </p>
             </div>
 
@@ -574,7 +615,7 @@ export default function RecordsPage() {
                 Supported files: PDF, PNG, JPG, WEBP, HEIC, TIFF. Maximum size: 8 MB. MedBridge now profiles uploads for
                 Epic, Oracle/Cerner, MEDITECH, athenahealth, eClinicalWorks, NextGen, Tebra, Practice Fusion, Greenway,
                 AdvancedMD, Allscripts/Veradigm, DrChrono, CureMD, Praxis, Nextech, SimplePractice/TherapyNotes, VA, and generic scanned records.
-                Image uploads are OCR&apos;d in the browser before sending to MedBridge; PDFs with text layers are parsed on the backend.
+                Image uploads are OCR&apos;d in the browser before sending to MedBridge; PDFs are routed through the backend AI extraction service and queued for human review.
               </p>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <button
@@ -595,6 +636,155 @@ export default function RecordsPage() {
               </div>
             </div>
           </form>
+        </FadeIn>
+
+        <FadeIn delay={0.035}>
+          <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Review queue</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Nothing is auto-written anymore. Every AI extraction lands here first with confidence, warnings, and structured findings.
+                </p>
+              </div>
+              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-amber-600 dark:text-amber-300">
+                {reviewQueue.length} pending
+              </div>
+            </div>
+
+            {reviewQueue.length === 0 ? (
+              <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/80 p-4 text-sm text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
+                The queue is clear. New AI document drafts will appear here for approval.
+              </div>
+            ) : (
+              <div className="mt-4 space-y-4">
+                {reviewQueue.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4 dark:border-amber-900 dark:bg-amber-950/20"
+                  >
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-gray-900 dark:text-amber-300">
+                            Ready for review
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">{item.document_date}</span>
+                          <span className="text-xs text-gray-400">&middot;</span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">{item.source_system}</span>
+                          {formatConfidence(item.confidence) && (
+                            <>
+                              <span className="text-xs text-gray-400">&middot;</span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">{formatConfidence(item.confidence)}</span>
+                            </>
+                          )}
+                        </div>
+                        <h3 className="mt-2 text-base font-semibold text-gray-900 dark:text-white">{item.document_title}</h3>
+                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                          {item.summary || item.findings.extraction_summary || "MedBridge prepared a structured draft for review."}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                          <span>{item.provider}</span>
+                          {item.facility && <span>{item.facility}</span>}
+                          {item.model_name && <span>Model: {item.model_name}</span>}
+                          <span>Engine: {formatClassification(item.extraction_engine)}</span>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                        <button
+                          type="button"
+                          onClick={() => handleRejectReview(item)}
+                          disabled={reviewActionId === item.id}
+                          className="inline-flex items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300"
+                        >
+                          {reviewActionId === item.id ? "Working..." : "Reject"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleApproveReview(item)}
+                          disabled={reviewActionId === item.id}
+                          className="inline-flex items-center justify-center rounded-xl bg-teal-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-teal-700 disabled:opacity-50"
+                        >
+                          {reviewActionId === item.id ? "Working..." : "Approve import"}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {Object.entries(item.counts).map(([key, value]) => (
+                        <span
+                          key={`${item.id}-${key}`}
+                          className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                        >
+                          {formatTargetLabel(key)}: {value}
+                        </span>
+                      ))}
+                      {item.caution_flags.map((flag) => (
+                        <span
+                          key={`${item.id}-${flag}`}
+                          className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                        >
+                          {formatClassification(flag)}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+                      {(item.findings.labs?.length ?? 0) > 0 && (
+                        <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950/60">
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Labs</div>
+                          <div className="mt-3 space-y-2">
+                            {item.findings.labs?.slice(0, 4).map((lab) => (
+                              <div key={`${item.id}-${lab.test_name}-${lab.value_text}`} className="text-sm text-gray-700 dark:text-gray-300">
+                                <span className="font-medium text-gray-900 dark:text-white">{lab.test_name}</span>
+                                <span className="ml-2">{lab.value_text}</span>
+                                {lab.reference_range && <span className="ml-2 text-xs text-gray-500">Ref {lab.reference_range}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {(item.findings.medications?.length ?? 0) > 0 && (
+                        <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-950/60">
+                          <div className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Medications</div>
+                          <div className="mt-3 space-y-2">
+                            {item.findings.medications?.slice(0, 4).map((medication) => (
+                              <div key={`${item.id}-${medication.name}-${medication.dose || ""}`} className="text-sm text-gray-700 dark:text-gray-300">
+                                <span className="font-medium text-gray-900 dark:text-white">{medication.name}</span>
+                                {(medication.dose || medication.frequency) && (
+                                  <span className="ml-2">
+                                    {[medication.dose, medication.frequency].filter(Boolean).join(" · ")}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {(item.findings.care_plan?.length ?? 0) > 0 && (
+                      <div className="mt-4 rounded-xl border border-sky-100 bg-sky-50/80 p-4 text-sm text-sky-800 dark:border-sky-900 dark:bg-sky-950/20 dark:text-sky-200">
+                        <div className="text-xs font-semibold uppercase tracking-[0.18em]">Care plan</div>
+                        <div className="mt-2 space-y-1">
+                          {item.findings.care_plan?.slice(0, 3).map((entry) => (
+                            <p key={`${item.id}-${entry}`}>{entry}</p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {item.refusal_reason && (
+                      <div className="mt-4 rounded-xl border border-red-100 bg-red-50/70 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/20 dark:text-red-300">
+                        {item.refusal_reason}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </FadeIn>
 
         <FadeIn delay={0.04}>
@@ -721,6 +911,11 @@ export default function RecordsPage() {
                       </div>
                       <h3 className="font-semibold text-gray-900 dark:text-white">{record.title}</h3>
                       <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{record.description}</p>
+                      {record.review_summary && (
+                        <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+                          Review draft: {record.review_summary}
+                        </p>
+                      )}
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         <span className="text-xs text-gray-500">{record.provider}</span>
                         {record.facility && <span className="text-xs text-gray-500">{record.facility}</span>}
@@ -744,6 +939,16 @@ export default function RecordsPage() {
                             Extraction: {formatClassification(record.extraction_status)}
                           </span>
                         )}
+                        {record.review_status && (
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300">
+                            Review: {formatClassification(record.review_status)}
+                          </span>
+                        )}
+                        {formatConfidence(record.review_confidence) && (
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300">
+                            {formatConfidence(record.review_confidence)}
+                          </span>
+                        )}
                         {record.source_family && (
                           <span className="px-2 py-0.5 rounded text-xs font-medium bg-violet-50 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300">
                             Family: {formatFamilyLabel(record.source_family)}
@@ -760,6 +965,14 @@ export default function RecordsPage() {
                             className="px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
                           >
                             {formatTargetLabel(target)}
+                          </span>
+                        ))}
+                        {record.review_caution_flags?.map((flag) => (
+                          <span
+                            key={`${record.id}-${flag}`}
+                            className="px-2 py-0.5 rounded text-xs font-medium bg-red-50 dark:bg-red-900/40 text-red-700 dark:text-red-300"
+                          >
+                            {formatClassification(flag)}
                           </span>
                         ))}
                         {record.download_url && (

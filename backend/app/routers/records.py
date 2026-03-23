@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import false
 from fastapi import APIRouter, Depends, Query, UploadFile, File, Form, HTTPException
 from fastapi.responses import Response
@@ -6,7 +6,7 @@ from sqlmodel import Session, select, or_
 from typing import Optional
 from pydantic import BaseModel
 from app.db import get_session
-from app.models import User, MedicalRecord, MedicalDocument, AuditLog
+from app.models import User, MedicalRecord, MedicalDocument, AuditLog, DocumentReviewItem
 from app.auth import get_current_user
 from app.encryption import encrypt_bytes, decrypt_bytes
 from app.document_intelligence import (
@@ -16,7 +16,8 @@ from app.document_intelligence import (
     iter_supported_record_types,
     profile_for_source_system,
 )
-from app.document_extraction import extract_document, persist_extraction
+from app.document_extraction import extract_document
+from app.document_ai import build_review_draft, create_review_item, persist_review_approval
 from app.document_profile_model import classify_text, model_summary
 
 router = APIRouter(prefix="/api", tags=["records"])
@@ -36,6 +37,49 @@ MAX_UPLOAD_BYTES = 8 * 1024 * 1024
 
 class DocumentClassificationRequest(BaseModel):
     text: str
+
+
+def _review_counts(payload: dict) -> dict[str, int]:
+    return {
+        "labs": len(payload.get("labs", [])),
+        "medications": len(payload.get("medications", [])),
+        "conditions": len(payload.get("conditions", [])),
+        "vitals": len(payload.get("vitals", [])),
+        "care_plan": len(payload.get("care_plan", [])),
+    }
+
+
+def _latest_review_items(review_items: list[DocumentReviewItem]) -> dict[int, DocumentReviewItem]:
+    latest_by_document: dict[int, DocumentReviewItem] = {}
+    for item in sorted(review_items, key=lambda current: current.created_at):
+        latest_by_document[item.document_id] = item
+    return latest_by_document
+
+
+def _serialize_review_item(review_item: DocumentReviewItem, document: MedicalDocument) -> dict:
+    payload = review_item.get_payload()
+    return {
+        "id": review_item.id,
+        "document_id": document.id,
+        "document_title": document.title,
+        "document_date": document.document_date,
+        "source": document.source,
+        "source_system": document.source_system,
+        "provider": document.provider,
+        "facility": document.facility,
+        "status": review_item.status,
+        "confidence": review_item.confidence,
+        "summary": review_item.summary,
+        "caution_flags": review_item.get_caution_flags(),
+        "model_name": review_item.model_name,
+        "extraction_engine": review_item.extraction_engine,
+        "source_mode": review_item.source_mode,
+        "refusal_reason": review_item.refusal_reason,
+        "counts": _review_counts(payload),
+        "findings": payload,
+        "created_at": review_item.created_at.isoformat(),
+        "download_url": f"/api/records/documents/{document.id}/download",
+    }
 
 
 def _parse_sort_date(value: str) -> datetime:
@@ -81,6 +125,7 @@ def list_records(
     record_stmt = select(MedicalRecord).where(MedicalRecord.patient_id == user.patient_id)
     document_stmt = select(MedicalDocument).where(MedicalDocument.patient_id == user.patient_id)
     all_record_stmt = select(MedicalRecord).where(MedicalRecord.patient_id == user.patient_id)
+    review_stmt = select(DocumentReviewItem).where(DocumentReviewItem.patient_id == user.patient_id)
 
     if type and type != "all":
         if type == "document":
@@ -115,6 +160,8 @@ def list_records(
     records = session.exec(record_stmt).all()
     documents = session.exec(document_stmt).all()
     all_patient_records = session.exec(all_record_stmt).all()
+    review_items = session.exec(review_stmt).all()
+    latest_review_by_document = _latest_review_items(review_items)
     derived_counts: dict[int, int] = {}
     for record in all_patient_records:
         for flag in record.get_flags():
@@ -155,6 +202,11 @@ def list_records(
             "provider": document.provider,
             "flags": [
                 "Uploaded file",
+                *(
+                    ["Ready for review"]
+                    if latest_review_by_document.get(document.id) and latest_review_by_document[document.id].status == "pending_review"
+                    else []
+                ),
                 *( [f"Extracted {derived_counts.get(document.id, 0)} items"] if derived_counts.get(document.id, 0) else []),
             ],
             "classification": document.record_type,
@@ -164,6 +216,12 @@ def list_records(
             "source_family": profile_for_source_system(document.source_system).family,
             "extraction_targets": extraction_targets_for(document.record_type, document.source_system),
             "derived_records_count": derived_counts.get(document.id, 0),
+            "review_item_id": latest_review_by_document[document.id].id if latest_review_by_document.get(document.id) else None,
+            "review_status": latest_review_by_document[document.id].status if latest_review_by_document.get(document.id) else None,
+            "review_summary": latest_review_by_document[document.id].summary if latest_review_by_document.get(document.id) else None,
+            "review_confidence": latest_review_by_document[document.id].confidence if latest_review_by_document.get(document.id) else None,
+            "review_caution_flags": latest_review_by_document[document.id].get_caution_flags() if latest_review_by_document.get(document.id) else [],
+            "review_counts": _review_counts(latest_review_by_document[document.id].get_payload()) if latest_review_by_document.get(document.id) else None,
             "download_url": f"/api/records/documents/{document.id}/download",
         }
         for document in documents
@@ -228,14 +286,17 @@ async def upload_document(
     session.add(document)
     session.flush()
     normalized_supplied_text = (extracted_text or "").strip() or None
-    extracted_content, ocr_status, extraction_status, text_length = extract_document(document, payload, normalized_supplied_text)
+    extracted_content, ocr_status, _extraction_status, text_length = extract_document(document, payload, normalized_supplied_text)
     document.ocr_status = ocr_status
-    document.extraction_status = extraction_status
     derived_records_count = 0
-    if extracted_content and extraction_status == "complete":
-        derived_records_count = persist_extraction(session, user, document, extracted_content)
-        if derived_records_count == 0:
-            document.extraction_status = "needs_review"
+    review_item: DocumentReviewItem | None = None
+    if document.content_type == "application/pdf" or normalized_supplied_text or extracted_content:
+        draft_build = build_review_draft(document, payload, normalized_supplied_text or extracted_content)
+        review_item = create_review_item(document, draft_build)
+        session.add(review_item)
+        document.extraction_status = "ready_for_review"
+    else:
+        document.extraction_status = "needs_review"
     session.add(AuditLog(
         patient_id=user.patient_id,
         action=f"Uploaded {document.file_name}",
@@ -245,6 +306,8 @@ async def upload_document(
     ))
     session.commit()
     session.refresh(document)
+    if review_item:
+        session.refresh(review_item)
 
     return {
         "id": document.id,
@@ -263,6 +326,12 @@ async def upload_document(
         "extraction_targets": extraction_targets_for(document.record_type, document.source_system),
         "derived_records_count": derived_records_count,
         "extracted_text_length": text_length,
+        "review_item_id": review_item.id if review_item else None,
+        "review_status": review_item.status if review_item else None,
+        "review_summary": review_item.summary if review_item else None,
+        "review_confidence": review_item.confidence if review_item else None,
+        "review_caution_flags": review_item.get_caution_flags() if review_item else [],
+        "review_counts": _review_counts(review_item.get_payload()) if review_item else None,
         "download_url": f"/api/records/documents/{document.id}/download",
     }
 
@@ -289,6 +358,93 @@ def classify_document_text(
     if not result:
         raise HTTPException(status_code=503, detail="Document profile model is not available yet.")
     return result
+
+
+@router.get("/records/review-queue")
+def get_review_queue(
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    review_items = session.exec(
+        select(DocumentReviewItem).where(
+            DocumentReviewItem.patient_id == user.patient_id,
+            DocumentReviewItem.status == "pending_review",
+        )
+    ).all()
+    document_ids = [item.document_id for item in review_items]
+    documents = {
+        document.id: document
+        for document in session.exec(select(MedicalDocument).where(MedicalDocument.id.in_(document_ids))).all()
+    } if document_ids else {}
+
+    serialized = [
+        _serialize_review_item(review_item, documents[review_item.document_id])
+        for review_item in sorted(review_items, key=lambda current: current.created_at, reverse=True)
+        if review_item.document_id in documents
+    ]
+    return serialized
+
+
+@router.post("/records/review-queue/{review_id}/approve")
+def approve_review_item(
+    review_id: int,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    review_item = session.get(DocumentReviewItem, review_id)
+    if not review_item or review_item.patient_id != user.patient_id:
+        raise HTTPException(status_code=404, detail="Review item not found.")
+    if review_item.status != "pending_review":
+        raise HTTPException(status_code=409, detail="This extraction has already been reviewed.")
+
+    document = session.get(MedicalDocument, review_item.document_id)
+    if not document or document.patient_id != user.patient_id:
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    created_items = persist_review_approval(session, user, document, review_item)
+    review_item.status = "approved"
+    review_item.reviewed_by = "You"
+    review_item.reviewed_at = datetime.now(timezone.utc)
+    document.extraction_status = "approved_review"
+    session.add(review_item)
+    session.add(document)
+    session.commit()
+    return {"status": "approved", "created_items": created_items}
+
+
+@router.post("/records/review-queue/{review_id}/reject")
+def reject_review_item(
+    review_id: int,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+):
+    review_item = session.get(DocumentReviewItem, review_id)
+    if not review_item or review_item.patient_id != user.patient_id:
+        raise HTTPException(status_code=404, detail="Review item not found.")
+    if review_item.status != "pending_review":
+        raise HTTPException(status_code=409, detail="This extraction has already been reviewed.")
+
+    document = session.get(MedicalDocument, review_item.document_id)
+    if not document or document.patient_id != user.patient_id:
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    review_item.status = "rejected"
+    review_item.reviewed_by = "You"
+    review_item.reviewed_at = datetime.now(timezone.utc)
+    document.extraction_status = "rejected_review"
+    session.add(review_item)
+    session.add(document)
+    session.add(
+        AuditLog(
+            patient_id=user.patient_id,
+            action=f"Rejected AI extraction for {document.file_name}",
+            performed_by="You",
+            icon="eye",
+            resource=f"document:{document.id}",
+        )
+    )
+    session.commit()
+    return {"status": "rejected"}
 
 
 @router.get("/records/documents/{document_id}/download")

@@ -4,7 +4,7 @@ from sqlmodel import select
 from fastapi.testclient import TestClient
 from sqlmodel import Session
 
-from app.models import MedicalRecord, MedicalDocument, LabObservation
+from app.models import DocumentReviewItem, MedicalRecord, MedicalDocument, LabObservation
 from app.encryption import decrypt_bytes, encrypt_bytes
 
 
@@ -197,7 +197,7 @@ class TestDocumentUploads:
         assert stored.facility == "Downtown Cardiology"
         assert decrypt_bytes(stored.encrypted_blob) == b"demo-pdf"
 
-        list_response = client.get("/api/records?type=document", headers=auth_headers)
+        list_response = client.get("/api/records", headers=auth_headers)
         assert list_response.status_code == 200
         records = list_response.json()
         assert len(records) == 1
@@ -211,7 +211,8 @@ class TestDocumentUploads:
         assert visit_records[0]["classification"] == "progress_note"
         assert visit_records[0]["extraction_profile"] == "eclinicalworks__progress_note"
         assert "vitals" in visit_records[0]["extraction_targets"]
-        assert visit_records[0]["derived_records_count"] >= 1
+        assert visit_records[0]["derived_records_count"] == 0
+        assert visit_records[0]["review_status"] == "pending_review"
 
     def test_download_document_requires_matching_user(
         self, client: TestClient, auth_headers: dict, session: Session, demo_user
@@ -291,7 +292,7 @@ class TestDocumentUploads:
         assert payload["source_system"]["label"] == "eclinicalworks"
         assert payload["record_type"]["label"] == "progress_note"
 
-    def test_upload_with_browser_ocr_text_creates_derived_records_and_labs(
+    def test_upload_with_browser_ocr_text_queues_review_then_approval_creates_records(
         self, client: TestClient, auth_headers: dict, session: Session, demo_user
     ):
         response = client.post(
@@ -321,8 +322,28 @@ class TestDocumentUploads:
         assert response.status_code == 200, response.text
         payload = response.json()
         assert payload["ocr_status"] == "completed_browser_ocr"
-        assert payload["extraction_status"] == "complete"
-        assert payload["derived_records_count"] >= 2
+        assert payload["extraction_status"] == "ready_for_review"
+        assert payload["review_status"] == "pending_review"
+        assert payload["derived_records_count"] == 0
+
+        review_queue = client.get("/api/records/review-queue", headers=auth_headers)
+        assert review_queue.status_code == 200
+        review_items = review_queue.json()
+        assert len(review_items) == 1
+        assert review_items[0]["counts"]["labs"] >= 2
+
+        stored_review = session.exec(
+            select(DocumentReviewItem).where(DocumentReviewItem.patient_id == demo_user.patient_id)
+        ).all()
+        assert len(stored_review) == 1
+        assert stored_review[0].status == "pending_review"
+
+        approve_response = client.post(
+            f"/api/records/review-queue/{stored_review[0].id}/approve",
+            headers=auth_headers,
+        )
+        assert approve_response.status_code == 200, approve_response.text
+        assert approve_response.json()["created_items"] >= 2
 
         extracted_records = session.exec(
             select(MedicalRecord).where(MedicalRecord.patient_id == demo_user.patient_id, MedicalRecord.record_type == "lab")
@@ -333,3 +354,40 @@ class TestDocumentUploads:
         labs = session.exec(select(LabObservation).where(LabObservation.patient_id == demo_user.patient_id)).all()
         assert len(labs) >= 2
         assert any(lab.test_name == "Hemoglobin A1C" or lab.test_name == "Hemoglobin A1C".title() for lab in labs)
+
+    def test_reject_review_item_marks_document_without_importing_records(
+        self, client: TestClient, auth_headers: dict, session: Session, demo_user
+    ):
+        response = client.post(
+            "/api/records/documents",
+            headers=auth_headers,
+            data={
+                "source_system": "eClinicalWorks",
+                "source": "Clinic portal",
+                "provider": "Dr. Avery",
+                "facility": "Downtown Cardiology",
+                "document_date": "2026-03-16",
+                "record_type": "progress_note",
+                "title": "Outside progress note",
+                "extracted_text": "Chief complaint: follow up for hypertension\nAssessment: stable\nPlan: continue medications",
+            },
+            files={"file": ("note.png", b"fake-image", "image/png")},
+        )
+        assert response.status_code == 200, response.text
+        review_id = response.json()["review_item_id"]
+        assert review_id is not None
+
+        reject_response = client.post(
+            f"/api/records/review-queue/{review_id}/reject",
+            headers=auth_headers,
+        )
+        assert reject_response.status_code == 200, reject_response.text
+
+        rejected_review = session.get(DocumentReviewItem, review_id)
+        assert rejected_review is not None
+        assert rejected_review.status == "rejected"
+
+        timeline_records = session.exec(
+            select(MedicalRecord).where(MedicalRecord.patient_id == demo_user.patient_id)
+        ).all()
+        assert timeline_records == []

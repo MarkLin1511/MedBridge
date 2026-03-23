@@ -74,6 +74,30 @@ class MedicalDocument(SQLModel, table=True):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
+class DocumentReviewItem(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    patient_id: str = Field(index=True)
+    document_id: int = Field(index=True)
+    status: str = Field(default="pending_review")  # pending_review, approved, rejected, failed
+    extraction_engine: str = Field(default="local_heuristic")
+    source_mode: str = Field(default="unknown")
+    model_name: Optional[str] = None
+    confidence: float = Field(default=0.0)
+    summary: Optional[str] = None
+    caution_flags: str = Field(default="[]")  # JSON array of warning strings
+    structured_payload: str = Field(default="{}")  # JSON object for review + later import
+    refusal_reason: Optional[str] = None
+    reviewed_by: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    def get_caution_flags(self) -> list:
+        return json.loads(self.caution_flags) if self.caution_flags else []
+
+    def get_payload(self) -> dict:
+        return json.loads(self.structured_payload) if self.structured_payload else {}
+
+
 class WearableData(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     patient_id: str = Field(index=True)

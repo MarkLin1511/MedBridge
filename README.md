@@ -58,7 +58,10 @@ docker compose up
 
 ## Environment Variables
 
-Copy `.env.example` to `.env` and fill in your values. See the file for all available options.
+Backend AI document extraction uses:
+
+- `OPENAI_API_KEY`: required for PDF-to-OpenAI extraction in the review queue
+- `OPENAI_DOCUMENT_MODEL`: optional, defaults to `gpt-5.4`
 
 ## Deploy
 
